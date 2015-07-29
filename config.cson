@@ -1,0 +1,24 @@
+"*":
+  editor:
+    showInvisibles: true
+    preferredLineLength: 120
+    tabLength: 4
+    invisibles: {}
+    fontSize: 16
+    autoIndentOnPaste: false
+  core:
+    themes: [
+      "seti-ui"
+      "seti-syntax"
+    ]
+    disabledPackages: [
+      "atom-color-highlight"
+    ]
+    audioBeep: false
+  "exception-reporting":
+    userId: "3132c276-766d-5085-866a-6a9d15f7f151"
+  welcome:
+    showOnStartup: false
+  "tree-view":
+    hideVcsIgnoredFiles: false
+  linter: {}

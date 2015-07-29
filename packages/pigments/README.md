@@ -1,0 +1,149 @@
+[![Build Status](https://travis-ci.org/abe33/atom-pigments.svg?branch=master)](https://travis-ci.org/abe33/atom-pigments)
+
+![Pigments Logo](https://cdn.rawgit.com/abe33/atom-pigments/master/resources/pigments-logo.svg)
+
+A package to display colors in project and files.
+
+![Screenshot](https://github.com/abe33/atom-pigments/blob/master/resources/pigments.gif?raw=true)
+
+## Install
+
+Using `apm`:
+
+```
+apm install pigments
+```
+
+Or search for `pigments` in Atom settings view.
+
+## Commands
+
+### Pigments: Show Palette
+
+You can display the project's palette through the `Pigments: Show Palette` command from the command palette:
+
+![Screenshot](https://github.com/abe33/atom-pigments/blob/master/resources/palette.gif?raw=true)
+
+### Pigments: Find Colors
+
+You can search for all colors in every source files using the `Pigments: Find Colors` command from the command palette:
+
+![Screenshot](https://github.com/abe33/atom-pigments/blob/master/resources/search.gif?raw=true)
+
+### Pigments: Reload
+
+This command will force a reload of all variables in the project, this can be useful when the serialized state of the plugin contains invalid data and you want to get rid of them without having to touch to the content of the `.atom/storage` directory.
+
+## Settings
+
+### Source Names
+
+An array of glob patterns of the files to use as source for the project's variables and colors.
+
+* Key: `pigments.sourceNames`
+* Default: `'**/*.styl', '**/*.stylus', '**/*.less', '**/*.sass', '**/*.scss'`
+
+### Ignored Names
+
+An array of glob patterns of the files to ignore as source files for the project's variables and colors.
+
+* Key: `pigments.ignoredNames`
+* Default: `['node_modules/*']`
+
+### Ignored Scopes
+
+An array of regular expressions strings to match scopes to ignore when rendering colors in a text editor.
+
+For instance, if you want to ignore colors in comments and strings in your source files, use the following value:
+
+```
+\.comment, \.string
+```
+
+* Key: `pigments.ignoredScopes`
+* Default: `[]`
+
+### Autocomplete Scopes
+
+The autocomplete provider will only complete color names in editors whose scope is present in this list.
+
+* Key: `pigments.autocompleteScopes`
+* Default: `'.source.css', '.source.css.less', '.source.sass', '.source.css.scss', '.source.stylus'`
+
+### Extend Autocomplete To Variables
+
+When enabled, the autocomplete provider will also provides completion for non-color variables.
+
+* Key: `pigments.extendAutocompleteToVariables`
+* Default: `false`
+
+### Traverse Into Symlink Directories
+
+Whether to traverse symlinked directories to find source files or not.
+
+* Key: `pigments.traverseIntoSymlinkDirectories`
+* Default: `false`
+
+### Marker Type
+
+Defines the render mode of color markers. The possible values are:
+
+<table>
+  <tr>
+    <th>background</th>
+    <th>outline</th>
+    <th>underline</th>
+    <th>dot</th>
+  </tr>
+  <tr>
+    <td>
+      <img src='https://github.com/abe33/atom-pigments/blob/master/resources/background-renderer.png?raw=true'/>
+    </td>
+    <td>
+      <img src='https://github.com/abe33/atom-pigments/blob/master/resources/outline-renderer.png?raw=true'/>
+    </td>
+    <td>
+      <img src='https://github.com/abe33/atom-pigments/blob/master/resources/underline-renderer.png?raw=true'/>
+    </td>
+    <td>
+      <img src='https://github.com/abe33/atom-pigments/blob/master/resources/dot-renderer.png?raw=true'/>
+    </td>
+  </tr>
+</table>
+
+* Key: `pigments.markerType`
+* Default: `'background'`
+
+### Sort Palette Colors
+
+The type of sorting applied to the colors in the palette view. It can be changed directly from the palette view.
+
+* Key: `pigments.sortPaletteColors`
+* Default: `'none'`
+
+### Group Palette Colors
+
+Defines how the colors are grouped together in the palette view. It can be changed directly from the palette view.
+
+* Key: `pigments.groupPaletteColors`
+* Default: `'none'`
+
+### Merge Duplicates
+
+Defines whether to merge colors duplicates together as a single result in the palette view. It can be changed directly from the palette view.
+
+* Key: `pigments.mergeDuplicates`
+* Default: `false`
+
+### Sources Warning Threshold
+
+When the number of source paths found in a project (as defined by the `Source Names` setting) is greater than or equal to the threshold, a safeguard popup open to let you define how to proceed further in the project initialization. It's just a safety measure to avoid scanning too many irrelevant files.
+
+You can either choose to drop all the paths that were found or to keep them all.
+
+A last option let you specify ignores patterns specific to the current project to ignore. These patterns are separated by commas and use the [`minimatch`](https://github.com/isaacs/minimatch) to perform the comparison with the file paths. You can live test the patterns while in the dialog.
+
+![sourcesWarningThreshold](https://github.com/abe33/atom-pigments/blob/master/resources/paths-size-guard.gif?raw=true)
+
+* Key: `pigments.sourcesWarningThreshold`
+* Default: `50`
