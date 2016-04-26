@@ -7,7 +7,6 @@
 /// <reference path="../jquery/jquery.d.ts" />
 /// <reference path="../space-pen/space-pen.d.ts" />
 /// <reference path="../emissary/emissary.d.ts" />
-/// <reference path="../pathwatcher/pathwatcher.d.ts" />
 /// <reference path="../text-buffer/text-buffer.d.ts" />
 /// <reference path="../status-bar/status-bar.d.ts" />
 
@@ -383,7 +382,7 @@ declare module AtomCore {
 	interface ICursorStatic {
 		new (arg:{editor:IEditor; marker:IDisplayBufferMarker; id: number;}):ICursor;
 	}
-	
+
     interface ScopeDescriptor {
 		scopes: string[];
     }
@@ -688,7 +687,6 @@ declare module AtomCore {
 		getMarkerCount():number;
 		hasMultipleCursors():boolean;
 		getCursors():ICursor[];
-		getCursor():ICursor;
 		addCursorAtScreenPosition(screenPosition:any):ICursor;
 		addCursorAtBufferPosition(bufferPosition:any):ICursor;
 		addCursor(marker:any):ICursor;
@@ -786,6 +784,8 @@ declare module AtomCore {
 		getSelectionMarkerAttributes():{type: string; editorId: number; invalidate: string; };
 		// joinLine():any; // deprecated
 
+		observeGrammar(callback: Function): Disposable;
+		onDidChangeGrammar(callback: Function): Disposable;
 		onDidChange(callback: Function): Disposable;
         onDidDestroy(callback: Function): Disposable;
         onDidStopChanging(callback: Function): Disposable;
@@ -801,9 +801,27 @@ declare module AtomCore {
 	}
 
 	interface IGrammar {
-    	name: any;
+		bundledPackage: boolean;
+		emitter: any;
+		fileTypes: [string];
+		firstLineRegex: any;
+		foldingStopMarker: any;
+		includedGrammarScopes: [any];
+		initialRule: any;
+		injectionSelector: any;
+		injections: any;
+		maxTokensPerLine: Number;
+		name: string;
+		packageName: string;
+		path: string;
+		rawPatterns: [any];
+		rawRepository: any;
+		registration: Disposable;
+		registry: any;
+		repository: Object;
 		scopeName: string;
 		// TBD
+
 	}
 
 	interface IPane /* extends Theorist.Model */ {
@@ -1022,6 +1040,7 @@ declare module AtomCore {
 
 	interface IConfig {
 		get(keyPath:string):any;
+		set(keyPath:string, value:any):any;
 		// TBD
 	}
 

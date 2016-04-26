@@ -1,3 +1,4 @@
+"use strict";
 var os = require('os');
 function defaultFormatCodeOptions() {
     return {
@@ -5,12 +6,15 @@ function defaultFormatCodeOptions() {
         TabSize: 4,
         NewLineCharacter: os.EOL,
         ConvertTabsToSpaces: true,
+        IndentStyle: ts.IndentStyle.Smart,
         InsertSpaceAfterCommaDelimiter: true,
         InsertSpaceAfterSemicolonInForStatements: true,
         InsertSpaceBeforeAndAfterBinaryOperators: true,
         InsertSpaceAfterKeywordsInControlFlowStatements: true,
         InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
         InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
+        InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+        InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: false,
         PlaceOpenBraceOnNewLineForFunctions: false,
         PlaceOpenBraceOnNewLineForControlBlocks: false,
     };
@@ -38,6 +42,12 @@ function makeFormatCodeOptions(config) {
     }
     if (typeof config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis === "boolean") {
         options.InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis;
+    }
+    if (typeof config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets === "boolean") {
+        options.InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets;
+    }
+    if (typeof config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces === "boolean") {
+        options.InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces;
     }
     if (typeof config.placeOpenBraceOnNewLineForFunctions === "boolean") {
         options.PlaceOpenBraceOnNewLineForFunctions = config.placeOpenBraceOnNewLineForFunctions;

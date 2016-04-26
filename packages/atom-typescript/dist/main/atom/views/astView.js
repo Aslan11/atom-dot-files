@@ -1,8 +1,8 @@
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var sp = require('atom-space-pen-views');
 var atomUtils = require("../atomUtils");
@@ -48,7 +48,7 @@ var AstView = (function (_super) {
         });
     };
     return AstView;
-})(sp.ScrollView);
+}(sp.ScrollView));
 exports.AstView = AstView;
 function renderTree(rootNode, _mainContent, display) {
     var root = {

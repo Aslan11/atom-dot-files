@@ -5,7 +5,6 @@ import autoCompleteProvider = require("../autoCompleteProvider");
 import path = require('path');
 import documentationView = require("../views/documentationView");
 import renameView = require("../views/renameView");
-var apd = require('atom-package-dependencies');
 import contextView = require("../views/contextView");
 import fileSymbolsView = require("../views/fileSymbolsView");
 import projectSymbolsView = require("../views/projectSymbolsView");
@@ -15,20 +14,29 @@ import {panelView} from "../views/mainPanelView";
 import * as url from "url";
 import {AstView, astURI, astURIFull} from "../views/astView";
 import {DependencyView, dependencyURI} from "../views/dependencyView";
-import simpleSelectionView from "../views/simpleSelectionView";
+import {simpleSelectionView} from "../views/simpleSelectionView";
 import overlaySelectionView from "../views/simpleOverlaySelectionView";
 import * as outputFileCommands from "./outputFileCommands";
 import {registerRenameHandling} from "./moveFilesHandling";
 import {RefactoringsByFilePath} from "../../lang/fixmyts/quickFix";
 import escapeHtml = require('escape-html');
+import * as rView from "../views/rView";
+import {$} from "atom-space-pen-views";
+import {registerReactCommands} from "./reactCommands";
+import {getFileStatus} from "../fileStatusCache";
+import {registerJson2dtsCommands} from "./json2dtsCommands";
+import * as semanticView from "../views/semanticView";
+
+// Load all the web components
+export * from "../components/componentRegistry";
 
 export function registerCommands() {
 
     // Stuff I've split out as we have a *lot* of commands
     outputFileCommands.register();
-
     registerRenameHandling();
-
+    registerReactCommands();
+    registerJson2dtsCommands();
 
     function applyRefactorings(refactorings: RefactoringsByFilePath) {
         var paths = atomUtils.getOpenTypeScritEditorsConsistentPaths();
@@ -42,22 +50,22 @@ export function registerCommands() {
         // otherwise open the file and change the buffer range
         atomUtils.getEditorsForAllPaths(refactorPaths)
             .then((editorMap) => {
-            refactorPaths.forEach((filePath) => {
-                var editor = editorMap[filePath];
-                editor.transact(() => {
-                    refactorings[filePath].forEach((refactoring) => {
-                        var range = atomUtils.getRangeForTextSpan(editor, refactoring.span);
-                        if (!refactoring.isNewTextSnippet) {
-                            editor.setTextInBufferRange(range, refactoring.newText);
-                        } else {
-                            let cursor = editor.getCursor();
-                            (<any>cursor).selection.setBufferRange(range);
-                            atomUtils.insertSnippet(refactoring.newText, editor, cursor);
-                        }
-                    });
-                })
+                refactorPaths.forEach((filePath) => {
+                    var editor = editorMap[filePath];
+                    editor.transact(() => {
+                        refactorings[filePath].forEach((refactoring) => {
+                            var range = atomUtils.getRangeForTextSpan(editor, refactoring.span);
+                            if (!refactoring.isNewTextSnippet) {
+                                editor.setTextInBufferRange(range, refactoring.newText);
+                            } else {
+                                let cursor = editor.getCursors()[0];
+                                (<any>cursor).selection.setBufferRange(range);
+                                atomUtils.insertSnippet(refactoring.newText, editor, cursor);
+                            }
+                        });
+                    })
+                });
             });
-        });
     }
 
     // Setup custom commands NOTE: these need to be added to the keymaps
@@ -94,6 +102,21 @@ export function registerCommands() {
 
         parent.build({ filePath: filePath }).then((resp) => {
             buildView.setBuildOutput(resp.buildOutput);
+
+            resp.tsFilesWithValidEmit.forEach((tsFile) => {
+                let status = getFileStatus(tsFile);
+                status.emitDiffers = false;
+            });
+
+            // Emit never fails with an emit error, so it's probably always gonna be an empty array
+            // It's here just in case something changes in TypeScript compiler
+            resp.tsFilesWithInvalidEmit.forEach((tsFile) => {
+                let status = getFileStatus(tsFile);
+                status.emitDiffers = true;
+            });
+
+            // Update the status of the file in the current editor
+            panelView.updateFileStatus(filePath);
         });
     });
 
@@ -144,6 +167,19 @@ export function registerCommands() {
     // This exists by default in the right click menu https://github.com/TypeStrong/atom-typescript/issues/96
     atom.commands.add('atom-text-editor', 'symbols-view:go-to-declaration', handleGoToDeclaration);
 
+    atom.commands.add('atom-workspace', 'typescript:create-tsconfig.json-project-file', (e) => {
+        if (!atomUtils.commandForTypeScript(e)) return;
+
+        var editor = atom.workspace.getActiveTextEditor();
+        var filePath = editor.getPath();
+
+        parent.createProject({ filePath }).then((res) => {
+            if (res.createdFilePath) {
+                atom.notifications.addSuccess(`tsconfig.json file created: <br/> ${res.createdFilePath}`);
+            }
+        });
+    });
+
     var theContextView: contextView.ContextView;
     atom.commands.add('atom-text-editor', 'typescript:context-actions', (e) => {
         if (!theContextView) theContextView = new contextView.ContextView();
@@ -154,7 +190,7 @@ export function registerCommands() {
         autoCompleteProvider.triggerAutocompletePlus();
     });
 
-    atom.commands.add('atom-text-editor', 'typescript:bas-development-testing', (e) => {
+    atom.commands.add('atom-workspace', 'typescript:bas-development-testing', (e) => {
         // documentationView.docView.hide();
         // documentationView.docView.autoPosition();
         // documentationView.testDocumentationView();
@@ -164,6 +200,18 @@ export function registerCommands() {
         //     // console.log(JSON.stringify({txt:res.text}))
         // });
 
+        // atom.commands.dispatch
+        //     atom.views.getView(atom.workspace.getActiveTextEditor()),
+        //     'typescript:dependency-view');
+        //
+        /*atom.commands.dispatch(
+            atom.views.getView(atom.workspace.getActiveTextEditor()),
+            'typescript:testing-r-view');*/
+
+        // atom.commands.dispatch(
+        //     atom.views.getView(atom.workspace.getActiveTextEditor()),
+        //     'typescript:toggle-semantic-view');
+
         atom.commands.dispatch(
             atom.views.getView(atom.workspace.getActiveTextEditor()),
             'typescript:dependency-view');
@@ -171,6 +219,12 @@ export function registerCommands() {
         // parent.getAST({ filePath: atom.workspace.getActiveEditor().getPath() }).then((res) => {
         //     console.log(res.root);
         // });
+    });
+
+    atom.commands.add('atom-workspace', 'typescript:toggle-semantic-view', (e) => {
+        if (!atomUtils.commandForTypeScript(e)) return;
+
+        semanticView.toggle();
     });
 
     atom.commands.add('atom-text-editor', 'typescript:rename-refactor', (e) => {
@@ -206,8 +260,8 @@ export function registerCommands() {
 
                     parent.getRenameFilesRefactorings({ oldPath: completePath, newPath: newText })
                         .then((res) => {
-                        applyRefactorings(res.refactorings);
-                    });
+                            applyRefactorings(res.refactorings);
+                        });
                 }
             });
             atom.notifications.addInfo('AtomTS: File rename comming soon!');
@@ -250,16 +304,16 @@ export function registerCommands() {
                         // otherwise open the file and change the buffer range
                         atomUtils.getEditorsForAllPaths(Object.keys(res.locations))
                             .then((editorMap) => {
-                            Object.keys(res.locations).forEach((filePath) => {
-                                var editor = editorMap[filePath];
-                                editor.transact(() => {
-                                    res.locations[filePath].forEach((textSpan) => {
-                                        var range = atomUtils.getRangeForTextSpan(editor, textSpan);
-                                        editor.setTextInBufferRange(range, newText);
-                                    });
-                                })
+                                Object.keys(res.locations).forEach((filePath) => {
+                                    var editor = editorMap[filePath];
+                                    editor.transact(() => {
+                                        res.locations[filePath].forEach((textSpan) => {
+                                            var range = atomUtils.getRangeForTextSpan(editor, textSpan);
+                                            editor.setTextInBufferRange(range, newText);
+                                        });
+                                    })
+                                });
                             });
-                        });
                     }
                 });
             });
@@ -282,11 +336,11 @@ export function registerCommands() {
             simpleSelectionView({
                 items: res.references,
                 viewForItem: (item) => {
-                    return `
+                    return `<div>
                         <span>${atom.project.relativize(item.filePath) }</span>
-                        <div class="pull-right">line: ${item.position.line}</div>
-                        <pre style="clear:both">${item.preview}</pre>
-                    `;
+                        <div class="pull-right">line: ${item.position.line + 1}</div>
+                        <ts-view>${item.preview}</ts-view>
+                    <div>`;
                 },
                 filterKey: utils.getName(() => res.references[0].filePath),
                 confirmed: (definition) => {
@@ -317,7 +371,7 @@ export function registerCommands() {
         (e) => {
             var editor = atom.workspace.getActiveTextEditor();
             if (!editor) return false;
-            if (path.extname(editor.getPath()) !== '.ts') return false;
+            if (path.extname(editor.getPath()) !== '.ts' && path.extname(editor.getPath()) !== '.tsx') return false;
 
 
             // Abort it for others
@@ -428,12 +482,31 @@ export function registerCommands() {
         });
     });
 
+    atomUtils.registerOpener({
+        commandSelector: 'atom-workspace',
+        commandName: 'typescript:testing-r-view',
+        uriProtocol: rView.RView.protocol,
+        getData: () => { return atomUtils.getFilePath() },
+        onOpen: (data) => new rView.RView({
+            icon: 'repo-forked',
+            title: 'React View',
+            filePath: data.filePath,
+        }),
+    })
+
     atom.commands.add('atom-workspace', 'typescript:sync', (e) => {
         if (!atomUtils.commandForTypeScript(e)) return;
 
         panelView.softReset();
     });
 
+    atom.commands.add('atom-text-editor', 'typescript:toggle-breakpoint', (e) => {
+        if (!atomUtils.commandForTypeScript(e)) return;
+
+        parent.toggleBreakpoint(atomUtils.getFilePathPosition()).then((res) => {
+            applyRefactorings(res.refactorings);
+        });
+    });
     /// Register autocomplete commands to show documentations
     /*atom.packages.activatePackage('autocomplete-plus').then(() => {
         var autocompletePlus = apd.require('autocomplete-plus');

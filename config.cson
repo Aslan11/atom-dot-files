@@ -1,24 +1,28 @@
 "*":
-  editor:
-    showInvisibles: true
-    preferredLineLength: 120
-    tabLength: 4
-    invisibles: {}
-    fontSize: 16
-    autoIndentOnPaste: false
   core:
+    audioBeep: false
+    disabledPackages: [
+      "atom-color-highlight"
+    ]
     themes: [
       "seti-ui"
       "seti-syntax"
     ]
-    disabledPackages: [
-      "atom-color-highlight"
-    ]
-    audioBeep: false
+  editor:
+    autoIndentOnPaste: false
+    fontSize: 17
+    invisibles: {}
+    preferredLineLength: 120
+    showInvisibles: true
+    tabLength: 4
   "exception-reporting":
     userId: "3132c276-766d-5085-866a-6a9d15f7f151"
-  welcome:
-    showOnStartup: false
+  linter:
+    showErrorPanel: false
   "tree-view":
     hideVcsIgnoredFiles: false
-  linter: {}
+  welcome:
+    showOnStartup: false
+".angular.html.text":
+  editor:
+    preferredLineLength: 120

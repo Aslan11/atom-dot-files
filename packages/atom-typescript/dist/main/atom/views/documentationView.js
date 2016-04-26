@@ -1,8 +1,8 @@
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var view = require('./view');
 var $ = view.$;
@@ -34,7 +34,7 @@ var DocumentationView = (function (_super) {
     };
     DocumentationView.prototype.autoPosition = function () {
         var editor = atom.workspace.getActiveTextEditor();
-        var cursor = editor.getCursor();
+        var cursor = editor.getCursors()[0];
         var cursorTop = cursor.getPixelRect().top - editor.getScrollTop();
         var editorHeight = editor.getHeight();
         if (editorHeight - cursorTop < 100) {
@@ -47,9 +47,8 @@ var DocumentationView = (function (_super) {
         }
     };
     return DocumentationView;
-})(view.View);
+}(view.View));
 exports.DocumentationView = DocumentationView;
-exports.docView;
 function attach() {
     if (exports.docView)
         return;

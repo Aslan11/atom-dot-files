@@ -1,12 +1,12 @@
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var sp = require('atom-space-pen-views');
 var mainPanelView = require('./mainPanelView');
-var fileSemanticView = require("./fileSemanticView");
+var semanticView = require("./semanticView");
 var titles = {
     togglePanel: 'Toggle TypeScript Panel',
     tabErrors: 'Tab: Errors in Open Files',
@@ -46,7 +46,7 @@ var ContextView = (function (_super) {
             mainPanelView.panelView.referencesPanelSelected();
         }
         if (item.title == titles.fileSemantics) {
-            fileSemanticView.showForCurrentEditor();
+            semanticView.toggle();
         }
         this.hide();
     };
@@ -67,5 +67,5 @@ var ContextView = (function (_super) {
         this.hide();
     };
     return ContextView;
-})(sp.SelectListView);
+}(sp.SelectListView));
 exports.ContextView = ContextView;

@@ -30,7 +30,7 @@ export function attach(editorView: JQuery, editor: AtomCore.IEditor) {
     var filePath = editor.getPath();
     var filename = path.basename(filePath);
     var ext = path.extname(filename);
-    if (ext !== '.ts') return;
+    if (!atomUtils.isAllowedExtension(ext)) return;
 
     // We only create a "program" once the file is persisted to disk
     if (!fs.existsSync(filePath)) {
@@ -61,12 +61,7 @@ export function attach(editorView: JQuery, editor: AtomCore.IEditor) {
     subscriber.subscribe(scroll, 'keydown', (e) => clearExprTypeTimeout());
 
     // Setup for clearing
-    atom.commands.add('atom-text-editor', 'editor:will-be-removed', (e) => {
-        if (e.currentTarget == editorView[0]) {
-            deactivate();
-        }
-    });
-
+    editor.onDidDestroy(() => deactivate());
 
     function showExpressionType(e: MouseEvent) {
 
@@ -74,8 +69,8 @@ export function attach(editorView: JQuery, editor: AtomCore.IEditor) {
         if (exprTypeTooltip) return;
 
         var pixelPt = pixelPositionFromMouseEvent(editorView, e);
-        pixelPt.top += editor.displayBuffer.getScrollTop();
-        pixelPt.left += editor.displayBuffer.getScrollLeft();
+        pixelPt.top += editor.getScrollTop();
+        pixelPt.left += editor.getScrollLeft();
         var screenPt = editor.screenPositionForPixelPosition(pixelPt);
         var bufferPt = editor.bufferPositionForScreenPosition(screenPt);
         var curCharPixelPt = rawView.pixelPositionForBufferPosition([bufferPt.row, bufferPt.column]);

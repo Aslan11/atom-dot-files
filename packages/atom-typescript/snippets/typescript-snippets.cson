@@ -1,4 +1,4 @@
-'.source.ts':
+'.source.ts, .source.tsx':
     'reference':
         'prefix': 'ref'
         'body': """
@@ -132,4 +132,9 @@
             transform:${1:null}{
                 $2
             }transform:${1:null}
+        """
+    'shebang':
+        'prefix': '#!'
+        'body': """
+            #!/usr/bin/env node
         """

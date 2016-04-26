@@ -1,6 +1,7 @@
 import path = require('path');
 import utils = require('../utils');
 import fs = require('fs');
+import os = require('os')
 import textBuffer = require('basarat-text-buffer');
 
 import tsconfig = require('../../tsconfig/tsconfig');
@@ -79,7 +80,7 @@ function createScriptInfo(fileName: string, text: string, isOpen = false): Scrip
 
         // console.error('initial text:',buffer.getText()==newText);
         // console.error({minChar,limChar,newText:newText.length});
-        // console.error(start,end);        
+        // console.error(start,end);
         buffer.setTextInRange([[start.line, start.col], [end.line, end.col]], newText, {normalizeLineEndings: false});
         // console.error(buffer.getText().length);
         // console.error(JSON.stringify({newText, final:buffer.getText()}));
@@ -199,17 +200,15 @@ function getScriptSnapShot(scriptInfo: ScriptInfo): ts.IScriptSnapshot {
         getText: (start: number, end: number) => textSnapshot.substring(start, end),
         getLength: () => textSnapshot.length,
         getChangeRange: getChangeRange,
-        getLineStartPositions: () => lineStarts,
-        version: version
     }
 }
 
 export var getDefaultLibFilePath = (options: ts.CompilerOptions) => {
     var filename = ts.getDefaultLibFileName(options);
-    return (path.join(path.dirname(require.resolve('typescript')), filename)).split('\\').join('/');
+    return (path.join(path.dirname(require.resolve('ntypescript')), filename)).split('\\').join('/');
 }
 
-export var typescriptDirectory = path.dirname(require.resolve('typescript')).split('\\').join('/');
+export var typescriptDirectory = path.dirname(require.resolve('ntypescript')).split('\\').join('/');
 
 
 // NOTES:
@@ -270,7 +269,7 @@ export class LanguageServiceHost implements ts.LanguageServiceHost {
         var script = this.fileNameToScript[fileName];
         if (script) {
             var minChar = script.getPositionFromLine(start.line, start.col);
-            var limChar = script.getPositionFromLine(end.line, end.col);            
+            var limChar = script.getPositionFromLine(end.line, end.col);
             script.editContent(minChar, limChar, newText);
             return;
         }
@@ -330,6 +329,18 @@ export class LanguageServiceHost implements ts.LanguageServiceHost {
     ////////////////////////////////////////
 
     getCompilationSettings = () => this.config.project.compilerOptions;
+    getNewLine = () => {
+        let eol = os.EOL;
+        switch (this.config.project.compilerOptions.newLine) {
+            case ts.NewLineKind.CarriageReturnLineFeed:
+                eol = "\r\n";
+                break;
+            case ts.NewLineKind.LineFeed:
+                eol = "\n";
+                break;
+        }
+        return eol;
+    }
     getScriptFileNames = (): string[]=> Object.keys(this.fileNameToScript);
     getScriptVersion = (fileName: string): string => {
         var script = this.fileNameToScript[fileName];

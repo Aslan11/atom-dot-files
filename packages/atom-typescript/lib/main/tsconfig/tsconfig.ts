@@ -8,87 +8,119 @@ var types = simpleValidator.types;
 // do not want to force users to put magic numbers in their tsconfig files
 // Possible: Use require('typescript').parseConfigFile in TS1.5
 // NOTE: see the changes in `commandLineParser.ts` in the TypeScript sources to see what needs updating
-// When adding you need to :
 /**
- * 	Update the validation 
- * 	If its an enum : Update the enum map
- * 	If its a path : Update the `make relative` code
+ * When adding you need to
+ *  0 Add in this interface
+ * 	1 Add to the validation
+ * 	2 If its an enum : Update `typescriptEnumMap`
+ * 	3 If its a path : Update the `make relative` code
  */
 interface CompilerOptions {
+    allowJs?: boolean;
     allowNonTsExtensions?: boolean;
+    allowSyntheticDefaultImports?: boolean;
+    allowUnreachableCode?: boolean;
+    allowUnusedLabels?: boolean;
     charset?: string;
     codepage?: number;
     declaration?: boolean;
     diagnostics?: boolean;
     emitBOM?: boolean;
+    experimentalAsyncFunctions?: boolean;
+    experimentalDecorators?: boolean;                 // Experimental. Needed for the next option `emitDecoratorMetadata` see : https://github.com/Microsoft/TypeScript/pull/3330
     emitDecoratorMetadata?: boolean;                  // Experimental. Emits addition type information for this reflection API https://github.com/rbuckton/ReflectDecorators
     help?: boolean;
+    isolatedModules?: boolean;
     inlineSourceMap?: boolean;
     inlineSources?: boolean;
+    jsx?: string;
     locale?: string;
+    listFiles?: boolean;
     mapRoot?: string;                                 // Optionally Specifies the location where debugger should locate map files after deployment
-    module?: string;                                  
+    module?: string;
+    moduleResolution?: string;
+    newLine?: string;
+    noEmit?: boolean;
+    noEmitHelpers?: boolean;
     noEmitOnError?: boolean;
     noErrorTruncation?: boolean;
+    noFallthroughCasesInSwitch?: boolean;
     noImplicitAny?: boolean;                          // Error on inferred `any` type
+    noImplicitReturns?: boolean;
+    noImplicitUseStrict?: boolean;
     noLib?: boolean;
     noLibCheck?: boolean;
     noResolve?: boolean;
     out?: string;
+    outFile?: string;                                 // new name for out
     outDir?: string;                                  // Redirect output structure to this directory
     preserveConstEnums?: boolean;
     removeComments?: boolean;                         // Do not emit comments in output
     rootDir?: string;
+    skipDefaultLibCheck?: boolean;
     sourceMap?: boolean;                              // Generates SourceMaps (.map files)
     sourceRoot?: string;                              // Optionally specifies the location where debugger should locate TypeScript source files after deployment
+    stripInternal?: boolean;
+    suppressExcessPropertyErrors?: boolean;           // Optionally disable strict object literal assignment checking
     suppressImplicitAnyIndexErrors?: boolean;
-    target?: string;                                  // 'es3'|'es5' (default)|'es6'
+    target?: string;                                  // 'es3'|'es5' (default)|'es6'|'es2015'
     version?: boolean;
     watch?: boolean;
 }
 
 var compilerOptionsValidation: simpleValidator.ValidationInfo = {
-    allowNonTsExtensions: { type: simpleValidator.types.boolean },
-    charset: { type: simpleValidator.types.string },
+    allowJs: { type: types.boolean },
+    allowNonTsExtensions: { type: types.boolean },
+    allowSyntheticDefaultImports: { type: types.boolean },
+    allowUnreachableCode: { type: types.boolean },
+    allowUnusedLabels: { type: types.boolean },
+    charset: { type: types.string },
     codepage: { type: types.number },
     declaration: { type: types.boolean },
     diagnostics: { type: types.boolean },
     emitBOM: { type: types.boolean },
+    experimentalAsyncFunctions: { type: types.boolean },
+    experimentalDecorators: { type: types.boolean },
     emitDecoratorMetadata: { type: types.boolean },
     help: { type: types.boolean },
     inlineSourceMap: { type: types.boolean },
     inlineSources: { type: types.boolean },
+    isolatedModules: { type: types.boolean },
+    jsx: { type: types.string, validValues: ['preserve', 'react'] },
     locals: { type: types.string },
+    listFiles: { type: types.boolean },
     mapRoot: { type: types.string },
-    module: { type: types.string, validValues: ['commonjs', 'amd', 'system', 'umd'] },
+    module: { type: types.string, validValues: ['commonjs', 'amd', 'system', 'umd', 'es6', 'es2015'] },
+    moduleResolution: { type: types.string, validValues: ['classic', 'node'] },
+    newLine: { type: types.string },
+    noEmit: { type: types.boolean },
+    noEmitHelpers: { type: types.boolean },
     noEmitOnError: { type: types.boolean },
     noErrorTruncation: { type: types.boolean },
+    noFallthroughCasesInSwitch: { type: types.boolean },
     noImplicitAny: { type: types.boolean },
+    noImplicitUseStrict: { type: types.boolean },
+    noImplicitReturns: { type: types.boolean },
     noLib: { type: types.boolean },
     noLibCheck: { type: types.boolean },
     noResolve: { type: types.boolean },
     out: { type: types.string },
+    outFile: { type: types.string },
     outDir: { type: types.string },
     preserveConstEnums: { type: types.boolean },
     removeComments: { type: types.boolean },
     rootDir: { type: types.string },
+    skipDefaultLibCheck: { type: types.boolean },
     sourceMap: { type: types.boolean },
     sourceRoot: { type: types.string },
+    stripInternal: { type: types.boolean },
+    suppressExcessPropertyErrors: { type: types.boolean },
     suppressImplicitAnyIndexErrors: { type: types.boolean },
-    target: { type: types.string, validValues: ['es3', 'es5', 'es6'] },
+    target: { type: types.string, validValues: ['es3', 'es5', 'es6', 'es2015'] },
     version: { type: types.boolean },
     watch: { type: types.boolean },
 }
 var validator = new simpleValidator.SimpleValidator(compilerOptionsValidation);
-
-interface TypeScriptProjectRawSpecification {
-    version?: string;
-    compilerOptions?: CompilerOptions;
-    files?: string[];                                   // optional: paths to files
-    filesGlob?: string[];                               // optional: An array of 'glob / minimatch / RegExp' patterns to specify source files    
-    formatCodeOptions?: formatting.FormatCodeOptions;   // optional: formatting options
-    compileOnSave?: boolean;                            // optional: compile on save. Ignored to build tools. Used by IDEs
-}
 
 interface UsefulFromPackageJson {
     /** We need this as this is the name the user is going to import **/
@@ -100,7 +132,26 @@ interface UsefulFromPackageJson {
     main: string;
 }
 
-// Main configuration
+/**
+ * This is the JSON.parse result of a tsconfig.json
+ */
+interface TypeScriptProjectRawSpecification {
+    compilerOptions?: CompilerOptions;
+    exclude?: string[];                                 // optional: An array of 'glob / minimatch / RegExp' patterns to specify directories / files to exclude
+    files?: string[];                                   // optional: paths to files
+    filesGlob?: string[];                               // optional: An array of 'glob / minimatch / RegExp' patterns to specify source files
+    formatCodeOptions?: formatting.FormatCodeOptions;   // optional: formatting options
+    compileOnSave?: boolean;                            // optional: compile on save. Ignored to build tools. Used by IDEs
+    buildOnSave?: boolean;
+    externalTranspiler?: string | { name: string; options?: any };
+    scripts?: { postbuild?: string };
+    atom?: { rewriteTsconfig?: boolean, formatOnSave?: boolean };
+}
+
+/**
+ * This is `TypeScriptProjectRawSpecification` parsed further
+ * Designed for use throughout out code base
+ */
 export interface TypeScriptProjectSpecification {
     compilerOptions: ts.CompilerOptions;
     files: string[];
@@ -108,7 +159,11 @@ export interface TypeScriptProjectSpecification {
     filesGlob?: string[];
     formatCodeOptions: ts.FormatCodeOptions;
     compileOnSave: boolean;
+    buildOnSave: boolean;
     package?: UsefulFromPackageJson;
+    externalTranspiler?: string | { name: string; options?: any };
+    scripts: { postbuild?: string };
+    atom: { rewriteTsconfig: boolean, formatOnSave: boolean };
 }
 
 ///////// FOR USE WITH THE API /////////////
@@ -126,14 +181,14 @@ export interface TypeScriptProjectFileDetails {
 //////////////////////////////////////////////////////////////////////
 
 export var errors = {
-    GET_PROJECT_INVALID_PATH: 'Invalid Path',
+    GET_PROJECT_INVALID_PATH: 'The path used to query for tsconfig.json does not exist',
     GET_PROJECT_NO_PROJECT_FOUND: 'No Project Found',
     GET_PROJECT_FAILED_TO_OPEN_PROJECT_FILE: 'Failed to fs.readFileSync the project file',
     GET_PROJECT_JSON_PARSE_FAILED: 'Failed to JSON.parse the project file',
     GET_PROJECT_GLOB_EXPAND_FAILED: 'Failed to expand filesGlob in the project file',
     GET_PROJECT_PROJECT_FILE_INVALID_OPTIONS: 'Project file contains invalid options',
 
-    CREATE_FILE_MUST_EXIST: 'To create a project the file must exist',
+    CREATE_FILE_MUST_EXIST: 'The Typescript file must exist on disk in order to create a project',
     CREATE_PROJECT_ALREADY_EXISTS: 'Project file already exists',
 };
 export interface GET_PROJECT_JSON_PARSE_FAILED_Details {
@@ -145,6 +200,11 @@ export interface GET_PROJECT_PROJECT_FILE_INVALID_OPTIONS_Details {
     errorMessage: string;
 }
 export interface GET_PROJECT_GLOB_EXPAND_FAILED_Details {
+    glob: string[];
+    projectFilePath: string;
+    errorMessage: string;
+}
+export interface GET_PROJECT_NO_PROJECT_FOUND_Details {
     projectFilePath: string;
     errorMessage: string;
 }
@@ -155,26 +215,39 @@ function errorWithDetails<T>(error: Error, details: T): Error {
 
 import fs = require('fs');
 import path = require('path');
-import expand = require('glob-expand');
+import tsconfig = require('tsconfig');
 import os = require('os');
+import detectIndent = require('detect-indent');
+import detectNewline = require('detect-newline');
+import extend = require('xtend');
 import formatting = require('./formatting');
 
 var projectFileName = 'tsconfig.json';
+
 /**
  * This is what we write to new files
  */
-var defaultFilesGlob = ["./**/*.ts", "!./node_modules/**/*.ts"];
+var defaultFilesGlob = [
+    "**/*.ts",
+    "**/*.tsx",
+    "!node_modules/**",
+];
 /**
  * This is what we use when the user doens't specify a files / filesGlob
  */
-var invisibleFilesGlob = ["./**/*.ts"];
-var typeScriptVersion = '1.5.0-alpha';
+var invisibleFilesGlob = '{**/*.ts,**/*.tsx}';
 
 export var defaults: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES5,
     module: ts.ModuleKind.CommonJS,
+    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+    isolatedModules: false,
+    jsx: ts.JsxEmit.React,
+    experimentalDecorators: true,
+    emitDecoratorMetadata: true,
     declaration: false,
     noImplicitAny: false,
+    noImplicitUseStrict: false,
     removeComments: true,
     noLib: false,
     preserveConstEnums: true,
@@ -192,28 +265,29 @@ var typescriptEnumMap = {
         'none': ts.ModuleKind.None,
         'commonjs': ts.ModuleKind.CommonJS,
         'amd': ts.ModuleKind.AMD,
-        'system': ts.ModuleKind.System,
         'umd': ts.ModuleKind.UMD,
+        'system': ts.ModuleKind.System,
+        'es6': ts.ModuleKind.ES6,
+        'es2015': ts.ModuleKind.ES2015,
+    },
+    moduleResolution: {
+        'node': ts.ModuleResolutionKind.NodeJs,
+        'classic': ts.ModuleResolutionKind.Classic
+    },
+    jsx: {
+        'preserve': ts.JsxEmit.Preserve,
+        'react': ts.JsxEmit.React
+    },
+    newLine: {
+        'CRLF': ts.NewLineKind.CarriageReturnLineFeed,
+        'LF': ts.NewLineKind.LineFeed
     }
 };
 
-var jsonEnumMap = {
-    target: (function() {
-        var map: { [key: number]: string; } = {};
-        map[ts.ScriptTarget.ES3] = 'es3';
-        map[ts.ScriptTarget.ES5] = 'es5';
-        map[ts.ScriptTarget.ES6] = 'es6';
-        map[ts.ScriptTarget.Latest] = 'latest';
-        return map;
-    })(),
-    module: (function() {
-        var map: { [key: number]: string; } = {};
-        map[ts.ModuleKind.None] = 'none';
-        map[ts.ModuleKind.CommonJS] = 'commonjs';
-        map[ts.ModuleKind.AMD] = 'amd';
-        return map;
-    })()
-};
+var jsonEnumMap: any = {};
+Object.keys(typescriptEnumMap).forEach(name => {
+    jsonEnumMap[name] = reverseKeysAndValues(typescriptEnumMap[name]);
+});
 
 function mixin(target: any, source: any): any {
     for (var key in source) {
@@ -224,10 +298,12 @@ function mixin(target: any, source: any): any {
 
 function rawToTsCompilerOptions(jsonOptions: CompilerOptions, projectDir: string): ts.CompilerOptions {
     // Cannot use Object.create because the compiler checks hasOwnProperty
-    var compilerOptions = <ts.CompilerOptions> mixin({}, defaults);
+    var compilerOptions = <ts.CompilerOptions>mixin({}, defaults);
     for (var key in jsonOptions) {
         if (typescriptEnumMap[key]) {
-            compilerOptions[key] = typescriptEnumMap[key][jsonOptions[key].toLowerCase()];
+            let name = jsonOptions[key];
+            let map = typescriptEnumMap[key];
+            compilerOptions[key] = map[name.toLowerCase()] || map[name.toUpperCase()];
         }
         else {
             compilerOptions[key] = jsonOptions[key];
@@ -243,7 +319,12 @@ function rawToTsCompilerOptions(jsonOptions: CompilerOptions, projectDir: string
     }
 
     if (compilerOptions.out !== undefined) {
-        compilerOptions.out = path.resolve(projectDir, compilerOptions.out);
+        // Till out is removed. Support by just copying it to `outFile`
+        compilerOptions.outFile = path.resolve(projectDir, compilerOptions.out);
+    }
+
+    if (compilerOptions.outFile !== undefined) {
+        compilerOptions.outFile = path.resolve(projectDir, compilerOptions.outFile);
     }
 
     return compilerOptions;
@@ -251,33 +332,35 @@ function rawToTsCompilerOptions(jsonOptions: CompilerOptions, projectDir: string
 
 function tsToRawCompilerOptions(compilerOptions: ts.CompilerOptions): CompilerOptions {
     // Cannot use Object.create because JSON.stringify will only serialize own properties
-    var jsonOptions = <CompilerOptions> mixin({}, compilerOptions);
+    var jsonOptions = <CompilerOptions>mixin({}, compilerOptions);
 
-    if (compilerOptions.target !== undefined) {
-        jsonOptions.target = jsonEnumMap.target[compilerOptions.target];
-    }
-
-    if (compilerOptions.module !== undefined) {
-        jsonOptions.module = jsonEnumMap.module[compilerOptions.module];
-    }
+    Object.keys(compilerOptions).forEach((key) => {
+        if (jsonEnumMap[key] && compilerOptions[key]) {
+            var value = <string>compilerOptions[key];
+            jsonOptions[key] = jsonEnumMap[key][value];
+        }
+    });
 
     return jsonOptions;
 }
 
-export function getDefaultProject(srcFile: string): TypeScriptProjectFileDetails {
+export function getDefaultInMemoryProject(srcFile: string): TypeScriptProjectFileDetails {
     var dir = fs.lstatSync(srcFile).isDirectory() ? srcFile : path.dirname(srcFile);
 
     var files = [srcFile];
     var typings = getDefinitionsForNodeModules(dir, files);
-    files = increaseProjectForReferenceAndImports(files);    
+    files = increaseProjectForReferenceAndImports(files);
     files = uniq(files.map(fsu.consistentPath));
 
-    let project = {
+    let project: TypeScriptProjectSpecification = {
         compilerOptions: defaults,
         files,
         typings: typings.ours.concat(typings.implicit),
         formatCodeOptions: formatting.defaultFormatCodeOptions(),
-        compileOnSave: true
+        compileOnSave: true,
+        buildOnSave: false,
+        scripts: {},
+        atom: { rewriteTsconfig: true, formatOnSave: false },
     };
 
     return {
@@ -298,76 +381,55 @@ export function getProjectSync(pathOrSrcFile: string): TypeScriptProjectFileDeta
         throw new Error(errors.GET_PROJECT_INVALID_PATH);
     }
 
-    // Get the path directory
     var dir = fs.lstatSync(pathOrSrcFile).isDirectory() ? pathOrSrcFile : path.dirname(pathOrSrcFile);
+    var projectFile = tsconfig.resolveSync(dir);
 
-    // Keep going up till we find the project file
-    var projectFile = '';
-    try {
-        projectFile = travelUpTheDirectoryTreeTillYouFind(dir, projectFileName);
+    if (!projectFile) {
+        throw errorWithDetails<GET_PROJECT_NO_PROJECT_FOUND_Details>(
+            new Error(errors.GET_PROJECT_NO_PROJECT_FOUND), { projectFilePath: fsu.consistentPath(pathOrSrcFile), errorMessage: 'not found' });
     }
-    catch (e) {
-        let err: Error = e;
-        if (err.message == "not found") {
-            throw new Error(errors.GET_PROJECT_NO_PROJECT_FOUND);
-        }
-    }
-    projectFile = path.normalize(projectFile);
+
     var projectFileDirectory = path.dirname(projectFile) + path.sep;
 
     // We now have a valid projectFile. Parse it:
     var projectSpec: TypeScriptProjectRawSpecification;
+    var projectFileTextContent: string;
+
     try {
-        var projectFileTextContent = fs.readFileSync(projectFile, 'utf8');
+        projectFileTextContent = fs.readFileSync(projectFile, 'utf8');
     } catch (ex) {
         throw new Error(errors.GET_PROJECT_FAILED_TO_OPEN_PROJECT_FILE);
     }
+
     try {
-        projectSpec = JSON.parse(projectFileTextContent);
+        projectSpec = tsconfig.parseFileSync(projectFileTextContent, projectFile, { resolvePaths: false });
     } catch (ex) {
         throw errorWithDetails<GET_PROJECT_JSON_PARSE_FAILED_Details>(
             new Error(errors.GET_PROJECT_JSON_PARSE_FAILED), { projectFilePath: fsu.consistentPath(projectFile), error: ex.message });
     }
 
-    // Setup default project options
-    if (!projectSpec.compilerOptions) projectSpec.compilerOptions = {};
+    /** Setup defaults for atom key */
+    if (!projectSpec.atom) {
+        projectSpec.atom = {
+            rewriteTsconfig: true,
+        }
+    }
 
-    // Our customizations for "tsconfig.json"
-    // Use grunt.file.expand type of logic
-    var cwdPath = path.relative(process.cwd(), path.dirname(projectFile));
-    if (!projectSpec.files && !projectSpec.filesGlob) { // If there is no files and no filesGlob, we create an invisible one.
-        var toExpand = invisibleFilesGlob;
-    }
-    if (projectSpec.filesGlob) { // If there is a files glob we will use that
-        var toExpand = projectSpec.filesGlob
-    }
-    if (toExpand) { // Expand whatever needs expanding
-        try {
-            projectSpec.files = expand({ filter: 'isFile', cwd: cwdPath }, toExpand);
-        }
-        catch (ex) {
-            throw errorWithDetails<GET_PROJECT_GLOB_EXPAND_FAILED_Details>(
-                new Error(errors.GET_PROJECT_GLOB_EXPAND_FAILED),
-                { glob: projectSpec.filesGlob, projectFilePath: fsu.consistentPath(projectFile), errorMessage: ex.message });
-        }
-    }
     if (projectSpec.filesGlob) { // for filesGlob we keep the files in sync
-        var prettyJSONProjectSpec = prettyJSON(projectSpec);
-        if (prettyJSONProjectSpec !== projectFileTextContent) {
-            fs.writeFileSync(projectFile, prettyJSON(projectSpec));
+        var prettyJSONProjectSpec = prettyJSON(projectSpec, detectIndent(projectFileTextContent).indent, detectNewline(projectFileTextContent));
+
+        if (prettyJSONProjectSpec !== projectFileTextContent && projectSpec.atom.rewriteTsconfig) {
+            fs.writeFileSync(projectFile, prettyJSONProjectSpec);
         }
     }
 
-    // Remove all relativeness
-    projectSpec.files = projectSpec.files.map((file) => path.resolve(projectFileDirectory, file));
-
-    var package: UsefulFromPackageJson = null;
+    var pkg: UsefulFromPackageJson = null;
     try {
         var packagePath = travelUpTheDirectoryTreeTillYouFind(projectFileDirectory, 'package.json');
         if (packagePath) {
             let packageJSONPath = getPotentiallyRelativeFile(projectFileDirectory, packagePath);
             let parsedPackage = JSON.parse(fs.readFileSync(packageJSONPath).toString());
-            package = {
+            pkg = {
                 main: parsedPackage.main,
                 name: parsedPackage.name,
                 directory: path.dirname(packageJSONPath),
@@ -381,12 +443,16 @@ export function getProjectSync(pathOrSrcFile: string): TypeScriptProjectFileDeta
 
     var project: TypeScriptProjectSpecification = {
         compilerOptions: {},
-        files: projectSpec.files,
+        files: projectSpec.files.map(x => path.resolve(projectFileDirectory, x)),
         filesGlob: projectSpec.filesGlob,
         formatCodeOptions: formatting.makeFormatCodeOptions(projectSpec.formatCodeOptions),
         compileOnSave: projectSpec.compileOnSave == undefined ? true : projectSpec.compileOnSave,
-        package,
-        typings: []
+        package: pkg,
+        typings: [],
+        externalTranspiler: projectSpec.externalTranspiler == undefined ? undefined : projectSpec.externalTranspiler,
+        scripts: projectSpec.scripts || {},
+        buildOnSave: !!projectSpec.buildOnSave,
+        atom: { rewriteTsconfig: true, formatOnSave: !!projectSpec.atom.formatOnSave }
     };
 
     // Validate the raw compiler options before converting them to TS compiler options
@@ -395,7 +461,7 @@ export function getProjectSync(pathOrSrcFile: string): TypeScriptProjectFileDeta
         throw errorWithDetails<GET_PROJECT_PROJECT_FILE_INVALID_OPTIONS_Details>(
             new Error(errors.GET_PROJECT_PROJECT_FILE_INVALID_OPTIONS),
             { projectFilePath: fsu.consistentPath(projectFile), errorMessage: validationResult.errorMessage }
-            );
+        );
     }
 
     // Convert the raw options to TS options
@@ -408,6 +474,7 @@ export function getProjectSync(pathOrSrcFile: string): TypeScriptProjectFileDeta
     var typings = getDefinitionsForNodeModules(dir, project.files);
     project.files = project.files.concat(typings.implicit);
     project.typings = typings.ours.concat(typings.implicit);
+    project.files = project.files.concat(typings.packagejson);
 
     // Normalize to "/" for all files
     // And take the uniq values
@@ -438,9 +505,13 @@ export function createProjectRootSync(srcFile: string, defaultOptions?: ts.Compi
 
     // We need to write the raw spec
     var projectSpec: TypeScriptProjectRawSpecification = {};
-    projectSpec.version = typeScriptVersion;
     projectSpec.compilerOptions = tsToRawCompilerOptions(defaultOptions || defaults);
-    projectSpec.filesGlob = defaultFilesGlob;
+    projectSpec.exclude = ["node_modules", "typings/browser", "typings/browser.d.ts"];
+    projectSpec.compileOnSave = true;
+    projectSpec.buildOnSave = false;
+    projectSpec.atom = {
+        rewriteTsconfig: false
+    };
 
     fs.writeFileSync(projectFilePath, prettyJSON(projectSpec));
     return getProjectSync(srcFile);
@@ -463,7 +534,7 @@ function increaseProjectForReferenceAndImports(files: string[]): string[] {
         }
     }
 
-    var getReferencedOrImportedFiles = (files: string[]): string[]=> {
+    var getReferencedOrImportedFiles = (files: string[]): string[] => {
         var referenced: string[][] = [];
 
         files.forEach(file => {
@@ -477,34 +548,38 @@ function increaseProjectForReferenceAndImports(files: string[]): string[] {
             var preProcessedFileInfo = ts.preProcessFile(content, true),
                 dir = path.dirname(file);
 
+            let extensions = ['.ts', '.d.ts', '.tsx'];
+            function getIfExists(filePathNoExt: string) {
+                for (let ext of extensions) {
+                    if (fs.existsSync(filePathNoExt + ext)) {
+                        return filePathNoExt + ext;
+                    }
+                }
+            }
+
             referenced.push(
                 preProcessedFileInfo.referencedFiles.map(fileReference => {
                     // We assume reference paths are always relative
                     var file = path.resolve(dir, fsu.consistentPath(fileReference.fileName));
-                    // Try all three, by itself, .ts, .d.ts
+                    // Try by itself then with extensions
                     if (fs.existsSync(file)) {
                         return file;
                     }
-                    if (fs.existsSync(file + '.ts')) {
-                        return file + '.ts';
-                    }
-                    if (fs.existsSync(file + '.d.ts')) {
-                        return file + '.d.ts';
-                    }
-                    return null;
-                }).filter(file=> !!file)
+                    return getIfExists(file);
+                }).filter(file => !!file)
                     .concat(
                     preProcessedFileInfo.importedFiles
                         .filter((fileReference) => pathIsRelative(fileReference.fileName))
                         .map(fileReference => {
-                        var file = path.resolve(dir, fileReference.fileName + '.ts');
-                        if (!fs.existsSync(file)) {
-                            file = path.resolve(dir, fileReference.fileName + '.d.ts');
-                        }
-                        return file;
-                    })
+                            let fileNoExt = path.resolve(dir, fileReference.fileName);
+                            let file = getIfExists(fileNoExt);
+                            if (!file) {
+                                file = getIfExists(`${file}/index`);
+                            }
+                            return file;
+                        }).filter(file => !!file)
                     )
-                );
+            );
         });
 
         return selectMany(referenced);
@@ -534,7 +609,8 @@ interface Typings {
  *  We will expand on files making sure that we don't have a `typing` with the same name
  *  Also if two node_modules reference a similar sub project (and also recursively) then the one with latest `version` field wins
  */
-function getDefinitionsForNodeModules(projectDir: string, files: string[]): { ours: string[]; implicit: string[] } {
+function getDefinitionsForNodeModules(projectDir: string, files: string[]): { ours: string[]; implicit: string[], packagejson: string[] } {
+    let packagejson = [];
 
     /** TODO use later when we care about versions */
     function versionStringToNumber(version: string): number {
@@ -547,9 +623,9 @@ function getDefinitionsForNodeModules(projectDir: string, files: string[]): { ou
     // Find our `typings` (anything in a typings folder with extension `.d.ts` is considered a typing)
     // These are INF powerful
     var ourTypings = files
-        .filter(f=> path.basename(path.dirname(f)) == 'typings' && endsWith(f, '.d.ts')
-        || path.basename(path.dirname(path.dirname(f))) == 'typings' && endsWith(f, '.d.ts'));
-    ourTypings.forEach(f=> typings[path.basename(f)] = { filePath: f, version: Infinity });
+        .filter(f => path.basename(path.dirname(f)) == 'typings' && endsWith(f, '.d.ts')
+            || path.basename(path.dirname(path.dirname(f))) == 'typings' && endsWith(f, '.d.ts'));
+    ourTypings.forEach(f => typings[path.basename(f)] = { filePath: f, version: Infinity });
     var existing = createMap(files.map(fsu.consistentPath));
 
     function addAllReferencedFilesWithMaxVersion(file: string) {
@@ -572,7 +648,7 @@ function getDefinitionsForNodeModules(projectDir: string, files: string[]): { ou
             if (fs.existsSync(file + '.d.ts')) {
                 return file + '.d.ts';
             }
-        });
+        }).filter(f => !!f);
 
         // Only ones we don't have by name yet
         // TODO: replace INF with an actual version
@@ -581,7 +657,7 @@ function getDefinitionsForNodeModules(projectDir: string, files: string[]): { ou
         // Add these
         files.forEach(f => typings[path.basename(f)] = { filePath: f, version: Infinity });
         // Keep expanding
-        files.forEach(f=> addAllReferencedFilesWithMaxVersion(f));
+        files.forEach(f => addAllReferencedFilesWithMaxVersion(f));
     }
 
     // Keep going up till we find node_modules
@@ -593,39 +669,54 @@ function getDefinitionsForNodeModules(projectDir: string, files: string[]): { ou
         // For each sub directory of node_modules look at package.json and then `typescript.definition`
         var moduleDirs = getDirs(node_modules);
         for (let moduleDir of moduleDirs) {
-            var package_json = JSON.parse(fs.readFileSync(`${moduleDir}/package.json`).toString());
-            if (package_json.typescript) {
-                if (package_json.typescript.definition) {
-                    let file = path.resolve(moduleDir, './', package_json.typescript.definition);
+            try {
+                var package_json = JSON.parse(fs.readFileSync(`${moduleDir}/package.json`).toString());
+                packagejson.push(`${moduleDir}/package.json`);
+            }
+            catch (ex) {
+                // Can't read package.json ... no worries ... move on to other modules
+                continue;
+            }
+            if (package_json.typescript && package_json.typescript.definition) {
 
-                    typings[path.basename(file)] = {
-                        filePath: file,
-                        version: Infinity
-                    };
-                    // Also add any files that this `.d.ts` references as long as they don't conflict with what we have
-                    addAllReferencedFilesWithMaxVersion(file);
-                }
+                let file = path.resolve(moduleDir, './', package_json.typescript.definition);
+
+                typings[path.basename(file)] = {
+                    filePath: file,
+                    version: Infinity
+                };
+                // Also add any files that this `.d.ts` references as long as they don't conflict with what we have
+                addAllReferencedFilesWithMaxVersion(file);
             }
         }
 
     }
     catch (ex) {
+        if (ex.message == "not found") {
+            // Sure we didn't find node_modules
+            // Thats cool
+        }
         // this is best effort only at the moment
+        else {
+            console.error('Failed to read package.json from node_modules due to error:', ex, ex.stack);
+        }
     }
 
     var all = Object.keys(typings)
         .map(typing => typings[typing].filePath)
-        .map(x=> fsu.consistentPath(x));
+        .map(x => fsu.consistentPath(x));
     var implicit = all
-        .filter(x=> !existing[x]);
+        .filter(x => !existing[x]);
     var ours = all
-        .filter(x=> existing[x]);
-    return { implicit, ours };
+        .filter(x => existing[x]);
+
+    return { implicit, ours, packagejson };
 }
 
-export function prettyJSON(object: any): string {
+export function prettyJSON(object: any, indent: string | number = 4, newLine: string = os.EOL): string {
     var cache = [];
-    var value = JSON.stringify(object,
+    var value = JSON.stringify(
+        object,
         // fixup circular reference
         function(key, value) {
             if (typeof value === 'object' && value !== null) {
@@ -638,9 +729,9 @@ export function prettyJSON(object: any): string {
             }
             return value;
         },
-    // indent 4 spaces
-        4);
-    value = value.split('\n').join(os.EOL) + os.EOL;
+        indent
+    );
+    value = value.replace(/(?:\r\n|\r|\n)/g, newLine) + newLine;
     cache = null;
     return value;
 }
@@ -671,7 +762,9 @@ function uniq(arr: string[]): string[] {
     return Object.keys(map);
 }
 
-// Converts "C:\boo" , "C:\boo\foo.ts" => "./foo.ts"; Works on unix as well.
+/**
+ * Converts "C:\boo" , "C:\boo\foo.ts" => "./foo.ts"; Works on unix as well.
+ */
 export function makeRelativePath(relativeFolder: string, filePath: string) {
     var relativePath = path.relative(relativeFolder, filePath).split('\\').join('/');
     if (relativePath[0] !== '.') {
@@ -733,11 +826,11 @@ function getDirs(rootDir: string): string[] {
     for (var file of files) {
         if (file[0] != '.') {
             var filePath = `${rootDir}/${file}`
-        }
-        var stat = fs.statSync(filePath)
+            var stat = fs.statSync(filePath);
 
-        if (stat.isDirectory()) {
-            dirs.push(filePath)
+            if (stat.isDirectory()) {
+                dirs.push(filePath)
+            }
         }
     }
     return dirs
@@ -751,4 +844,15 @@ export function createMap(arr: string[]): { [string: string]: boolean } {
         result[key] = true;
         return result;
     }, <{ [string: string]: boolean }>{});
+}
+
+/**
+ * Turns keys into values and values into keys
+ */
+function reverseKeysAndValues(obj) {
+    var toret = {};
+    Object.keys(obj).forEach(function(key) {
+        toret[obj[key]] = key;
+    });
+    return toret;
 }

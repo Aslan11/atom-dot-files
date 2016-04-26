@@ -1,5 +1,7 @@
+"use strict";
 var path = require('path');
 var fs = require('fs');
+var os = require('os');
 var textBuffer = require('basarat-text-buffer');
 function createScriptInfo(fileName, text, isOpen) {
     if (isOpen === void 0) { isOpen = false; }
@@ -114,15 +116,13 @@ function getScriptSnapShot(scriptInfo) {
         getText: function (start, end) { return textSnapshot.substring(start, end); },
         getLength: function () { return textSnapshot.length; },
         getChangeRange: getChangeRange,
-        getLineStartPositions: function () { return lineStarts; },
-        version: version
     };
 }
 exports.getDefaultLibFilePath = function (options) {
     var filename = ts.getDefaultLibFileName(options);
-    return (path.join(path.dirname(require.resolve('typescript')), filename)).split('\\').join('/');
+    return (path.join(path.dirname(require.resolve('ntypescript')), filename)).split('\\').join('/');
 };
-exports.typescriptDirectory = path.dirname(require.resolve('typescript')).split('\\').join('/');
+exports.typescriptDirectory = path.dirname(require.resolve('ntypescript')).split('\\').join('/');
 var LanguageServiceHost = (function () {
     function LanguageServiceHost(config) {
         var _this = this;
@@ -207,6 +207,18 @@ var LanguageServiceHost = (function () {
             return { preview: preview, position: position };
         };
         this.getCompilationSettings = function () { return _this.config.project.compilerOptions; };
+        this.getNewLine = function () {
+            var eol = os.EOL;
+            switch (_this.config.project.compilerOptions.newLine) {
+                case ts.NewLineKind.CarriageReturnLineFeed:
+                    eol = "\r\n";
+                    break;
+                case ts.NewLineKind.LineFeed:
+                    eol = "\n";
+                    break;
+            }
+            return eol;
+        };
         this.getScriptFileNames = function () { return Object.keys(_this.fileNameToScript); };
         this.getScriptVersion = function (fileName) {
             var script = _this.fileNameToScript[fileName];
@@ -243,5 +255,5 @@ var LanguageServiceHost = (function () {
         }
     }
     return LanguageServiceHost;
-})();
+}());
 exports.LanguageServiceHost = LanguageServiceHost;

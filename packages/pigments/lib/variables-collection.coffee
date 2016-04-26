@@ -1,13 +1,13 @@
 {Emitter} = require 'atom'
 ColorContext = require './color-context'
+ColorExpression = require './color-expression'
 Color = require './color'
+registry = require './color-expressions'
 
 nextId = 0
 
 module.exports =
 class VariablesCollection
-  atom.deserializers.add(this)
-
   @deserialize: (state) ->
     new VariablesCollection(state)
 
@@ -31,6 +31,8 @@ class VariablesCollection
     @emitter.on 'did-change', callback
 
   getVariables: -> @variables.slice()
+
+  getNonColorVariables: -> @getVariables().filter (v) -> not v.isColor
 
   getVariablesForPath: (path) -> @variablesByPath[path] ? []
 
@@ -63,12 +65,14 @@ class VariablesCollection
       else
         v[k] is properties[k]
 
-  updateCollection: (collection) ->
+  updateCollection: (collection, paths) ->
     pathsCollection = {}
+    remainingPaths = []
 
     for v in collection
       pathsCollection[v.path] ?= []
       pathsCollection[v.path].push(v)
+      remainingPaths.push(v.path) unless v.path in remainingPaths
 
     results = {
       created: []
@@ -82,6 +86,19 @@ class VariablesCollection
       results.created = results.created.concat(created) if created?
       results.updated = results.updated.concat(updated) if updated?
       results.destroyed = results.destroyed.concat(destroyed) if destroyed?
+
+    if paths?
+      pathsToDestroy = if collection.length is 0
+        paths
+      else
+        paths.filter (p) -> p not in remainingPaths
+
+      for path in pathsToDestroy
+        {created, updated, destroyed} = @updatePathCollection(path, collection, true) or {}
+
+        results.created = results.created.concat(created) if created?
+        results.updated = results.updated.concat(updated) if updated?
+        results.destroyed = results.destroyed.concat(destroyed) if destroyed?
 
     results = @updateDependencies(results)
 
@@ -170,7 +187,7 @@ class VariablesCollection
       results
     else
       results = @updateDependencies(results)
-      @deleteVariableReferences(v) for v in destroyed
+      @deleteVariableReferences(v) for v in destroyed when v?
       @emitChangeEvent(results)
 
   deleteVariablesForPaths: (paths) -> @removeMany(@getVariablesForPaths(paths))
@@ -183,12 +200,28 @@ class VariablesCollection
 
     a = @variableNames
     a.splice(a.indexOf(variable.name), 1)
-
     @removeDependencies(variable.name, dependencies)
 
     delete @dependencyGraph[variable.name]
 
-  getContext: -> new ColorContext(@variables, @colorVariables)
+  getContext: -> new ColorContext({@variables, @colorVariables, registry})
+
+  evaluateVariables: (variables) ->
+    updated = []
+
+    for v in variables
+      wasColor = v.isColor
+      @evaluateVariableColor(v, wasColor)
+      isColor = v.isColor
+
+      if isColor isnt wasColor
+        updated.push(v)
+
+        if isColor
+          @buildDependencyGraph(v)
+
+    if updated.length > 0
+      @emitChangeEvent(@updateDependencies({updated}))
 
   updateVariable: (previousVariable, variable, batch) ->
     previousDependencies = @getVariableDependencies(previousVariable)
@@ -222,7 +255,6 @@ class VariablesCollection
     @variablesByPath[variable.path] ?= []
     @variablesByPath[variable.path].push(variable)
 
-    @evaluateVariableColor(variable)
     @buildDependencyGraph(variable)
 
   createVariable: (variable, batch) ->
@@ -272,7 +304,6 @@ class VariablesCollection
         when 'identical' then return ['unchanged', v]
         when 'move' then return ['moved', v]
         when 'update' then return ['updated', v]
-        when 'different' then return ['created', variable]
 
     return ['created', variable]
 
@@ -306,7 +337,7 @@ class VariablesCollection
     dependencies = []
     dependencies.push(variable.value) if variable.value in @variableNames
 
-    if variable.color?.variables.length > 0
+    if variable.color?.variables?.length > 0
       variables = variable.color.variables
 
       for v in variables
@@ -332,6 +363,8 @@ class VariablesCollection
       @dependencyGraph[v].push(from)
 
   updateDependencies: ({created, updated, destroyed}) ->
+    @updateColorVariablesExpression()
+
     variables = []
     dirtyVariableNames = []
 
@@ -343,6 +376,7 @@ class VariablesCollection
 
     variables = variables.concat(updated) if updated?
     variables = variables.concat(destroyed) if destroyed?
+    variables = variables.filter (v) -> v?
 
     for variable in variables
       if dependencies = @dependencyGraph[variable.name]
@@ -361,7 +395,15 @@ class VariablesCollection
 
   emitChangeEvent: ({created, destroyed, updated}) ->
     if created?.length or destroyed?.length or updated?.length
+      @updateColorVariablesExpression()
       @emitter.emit 'did-change', {created, destroyed, updated}
+
+  updateColorVariablesExpression: ->
+    colorVariables = @getColorVariables()
+    if colorVariables.length > 0
+      registry.addExpression(ColorExpression.colorExpressionForColorVariables(colorVariables))
+    else
+      registry.removeExpression('pigments:variables')
 
   diffArrays: (a,b) ->
     removed = []

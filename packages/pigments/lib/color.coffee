@@ -1,5 +1,6 @@
 {
   hexARGBToRGB
+  hexRGBAToRGB
   hexToRGB
   hslToRGB
   hsvToHWB
@@ -11,6 +12,7 @@
   rgbToHWB
   rgbToHex
   rgbToHexARGB
+  rgbToHexRGBA
 } = require './color-conversions'
 SVGColors = require './svg-colors'
 
@@ -126,6 +128,12 @@ class Color
     set: (hex) -> [@red, @green, @blue, @alpha] = hexARGBToRGB(hex)
   }
 
+  Object.defineProperty Color.prototype, 'hexRGBA', {
+    enumerable: true
+    get: -> rgbToHexRGBA(@red, @green, @blue, @alpha)
+    set: (hex) -> [@red, @green, @blue, @alpha] = hexRGBAToRGB(hex)
+  }
+
   Object.defineProperty Color.prototype, 'length', {
     enumerable: true
     get: -> 4
@@ -180,6 +188,8 @@ class Color
       0.2126 * r + 0.7152 * g + 0.0722 * b
   }
 
+  isLiteral: -> not @variables? or @variables.length is 0
+
   isValid: ->
     !@invalid and
     @red? and @green? and @blue? and @alpha? and
@@ -207,11 +217,11 @@ class Color
   transparentize: (alpha) ->
     new Color(@red, @green, @blue, alpha)
 
-  blend: (color, method) ->
+  blend: (color, method, preserveAlpha=true) ->
     r = method(@red, color.red)
     g = method(@green, color.green)
     b = method(@blue, color.blue)
-    a = method(@alpha, color.alpha)
+    a = if preserveAlpha then @alpha else method(@alpha, color.alpha)
 
     new Color(r,g,b,a)
 

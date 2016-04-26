@@ -1,3 +1,4 @@
+"use strict";
 var path = require('path');
 var fs = require('fs');
 var fsu = require("../utils/fsUtil");
@@ -13,6 +14,15 @@ function getEditorPositionForBufferPosition(editor, bufferPos) {
     return buffer.characterIndexForPosition(bufferPos);
 }
 exports.getEditorPositionForBufferPosition = getEditorPositionForBufferPosition;
+function isAllowedExtension(ext) {
+    return (ext == '.ts' || ext == '.tst' || ext == '.tsx');
+}
+exports.isAllowedExtension = isAllowedExtension;
+function isActiveEditorOnDiskAndTs() {
+    var editor = atom.workspace.getActiveTextEditor();
+    return onDiskAndTs(editor);
+}
+exports.isActiveEditorOnDiskAndTs = isActiveEditorOnDiskAndTs;
 function onDiskAndTs(editor) {
     if (editor instanceof require('atom').TextEditor) {
         var filePath = editor.getPath();
@@ -20,7 +30,7 @@ function onDiskAndTs(editor) {
             return false;
         }
         var ext = path.extname(filePath);
-        if (ext == '.ts' || ext == '.tst') {
+        if (isAllowedExtension(ext)) {
             if (fs.existsSync(filePath)) {
                 return true;
             }
@@ -29,6 +39,25 @@ function onDiskAndTs(editor) {
     return false;
 }
 exports.onDiskAndTs = onDiskAndTs;
+function onDiskAndTsRelated(editor) {
+    if (editor instanceof require('atom').TextEditor) {
+        var filePath = editor.getPath();
+        if (!filePath) {
+            return false;
+        }
+        var ext = path.extname(filePath);
+        if (isAllowedExtension(ext)) {
+            if (fs.existsSync(filePath)) {
+                return true;
+            }
+        }
+        if (filePath.endsWith('tsconfig.json')) {
+            return true;
+        }
+    }
+    return false;
+}
+exports.onDiskAndTsRelated = onDiskAndTsRelated;
 function getFilePathPosition() {
     var editor = atom.workspace.getActiveTextEditor();
     var filePath = editor.getPath();
@@ -137,7 +166,8 @@ function commandForTypeScript(e) {
     var editor = atom.workspace.getActiveTextEditor();
     if (!editor)
         return e.abortKeyBinding() && false;
-    if (path.extname(editor.getPath()) !== '.ts' || path.extname(editor.getPath()) == '.tst')
+    var ext = path.extname(editor.getPath());
+    if (!isAllowedExtension(ext))
         return e.abortKeyBinding() && false;
     return true;
 }
@@ -195,6 +225,27 @@ function registerOpener(config) {
     });
 }
 exports.registerOpener = registerOpener;
+function triggerLinter() {
+    atom.commands.dispatch(atom.views.getView(atom.workspace.getActiveTextEditor()), 'linter:lint');
+}
+exports.triggerLinter = triggerLinter;
+function getFilePathRelativeToAtomProject(filePath) {
+    filePath = fsu.consistentPath(filePath);
+    return '~' + atom.project.relativize(filePath);
+}
+exports.getFilePathRelativeToAtomProject = getFilePathRelativeToAtomProject;
+function openFile(filePath, position) {
+    if (position === void 0) { position = {}; }
+    var config = {};
+    if (position.line) {
+        config.initialLine = position.line - 1;
+    }
+    if (position.col) {
+        config.initialColumn = position.col;
+    }
+    atom.workspace.open(filePath, config);
+}
+exports.openFile = openFile;
 var _snippetsManager;
 function _setSnippetsManager(snippetsManager) {
     _snippetsManager = snippetsManager;

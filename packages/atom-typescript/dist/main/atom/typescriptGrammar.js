@@ -1,13 +1,8 @@
-// Help:
-// https://github.com/atom/first-mate/
-// https://github.com/fdecampredon/brackets-typescript/blob/master/src/main/mode.ts
-// https://github.com/p-e-w/language-javascript-semantic/blob/master/lib/javascript-semantic-grammar.coffee
-// TODO: update to latest : https://github.com/atom/atom/pull/6757
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var utils = require('../lang/utils');
 var TokenClass = ts.TokenClass;
@@ -41,10 +36,10 @@ var TypeScriptSemanticGrammar = (function (_super) {
         else {
             this.trailingWhiteSpaceLength = 0;
         }
-        var finalLexState = firstLine ? 0
+        var finalLexState = firstLine ? ts.EndOfLineState.None
             : ruleStack && ruleStack.length ? ruleStack[0]
-                : 0;
-        if (finalLexState !== 0) {
+                : ts.EndOfLineState.None;
+        if (finalLexState !== ts.EndOfLineState.None) {
             return this.getAtomTokensForLine(line, finalLexState);
         }
         if (line.match(this.fullTripleSlashReferencePathRegEx)) {
@@ -129,7 +124,7 @@ var TypeScriptSemanticGrammar = (function (_super) {
     };
     TypeScriptSemanticGrammar.prototype.getTsTokensForLine = function (line, finalLexState) {
         var _this = this;
-        if (finalLexState === void 0) { finalLexState = 0; }
+        if (finalLexState === void 0) { finalLexState = ts.EndOfLineState.None; }
         var output = this.classifier.getClassificationsForLine(line, finalLexState, true);
         var ruleStack = [output.finalLexState];
         var classificationResults = output.entries;
@@ -143,7 +138,7 @@ var TypeScriptSemanticGrammar = (function (_super) {
             var style = getAtomStyleForToken(info, str);
             if (style == 'comment.block') {
                 var toret = [];
-                var match;
+                var match = void 0;
                 while (match = _this.todoRegex.exec(str)) {
                     var start = match.index;
                     var length = match[1].length;
@@ -173,7 +168,7 @@ var TypeScriptSemanticGrammar = (function (_super) {
         return { tokens: tokens, ruleStack: tsTokensWithRuleStack.ruleStack };
     };
     return TypeScriptSemanticGrammar;
-})(AtomTSBaseGrammar);
+}(AtomTSBaseGrammar));
 exports.TypeScriptSemanticGrammar = TypeScriptSemanticGrammar;
 function getAtomStyleForToken(token, str) {
     switch (token.classification) {

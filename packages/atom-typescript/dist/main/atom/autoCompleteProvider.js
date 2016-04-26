@@ -1,4 +1,4 @@
-/// <reference path='../../globals'/>
+"use strict";
 var parent = require('../../worker/parent');
 var atomConfig = require('./atomConfig');
 var fs = require('fs');
@@ -11,29 +11,10 @@ function triggerAutocompletePlus() {
     explicitlyTriggered = true;
 }
 exports.triggerAutocompletePlus = triggerAutocompletePlus;
-var tsSnipPrefixLookup = Object.create(null);
-function loadSnippets() {
-    var confPath = atom.getConfigDirPath();
-    CSON.readFile(confPath + "/packages/atom-typescript/snippets/typescript-snippets.cson", function (err, snippetsRoot) {
-        if (err)
-            return;
-        if (!snippetsRoot || !snippetsRoot['.source.ts'])
-            return;
-        var tsSnippets = snippetsRoot['.source.ts'];
-        for (var snippetName in tsSnippets) {
-            if (tsSnippets.hasOwnProperty(snippetName)) {
-                tsSnipPrefixLookup[tsSnippets[snippetName].prefix] = {
-                    body: tsSnippets[snippetName].body,
-                    name: snippetName
-                };
-            }
-        }
-    });
-}
-loadSnippets();
 exports.provider = {
-    selector: '.source.ts',
+    selector: '.source.ts, .source.tsx',
     inclusionPriority: 3,
+    suggestionPriority: 3,
     excludeLowerPriority: false,
     getSuggestions: function (options) {
         var filePath = options.editor.getPath();
@@ -41,31 +22,31 @@ exports.provider = {
             return Promise.resolve([]);
         if (!fs.existsSync(filePath))
             return Promise.resolve([]);
-        var pathMatchers = ['reference.path.string', 'require.path.string', 'es6import.path.string'];
+        var pathMatchers = ['reference.path.quoted.string', 'require.path.quoted.string', 'es6import.path.quoted.string'];
         var lastScope = options.scopeDescriptor.scopes[options.scopeDescriptor.scopes.length - 1];
         if (pathMatchers.some(function (p) { return lastScope === p; })) {
-            return parent.getRelativePathsInProject({ filePath: filePath, prefix: options.prefix, includeExternalModules: lastScope !== 'reference.path.string' })
+            return parent.getRelativePathsInProject({ filePath: filePath, prefix: options.prefix, includeExternalModules: lastScope !== 'reference.path.quoted.string' })
                 .then(function (resp) {
                 return resp.files.map(function (file) {
                     var relativePath = file.relativePath;
                     var suggestionText = relativePath;
                     var suggestion = {
                         text: suggestionText,
-                        replacementPrefix: resp.endsInPunctuation ? '' : options.prefix,
+                        replacementPrefix: resp.endsInPunctuation ? '' : options.prefix.trim(),
                         rightLabelHTML: '<span>' + file.name + '</span>',
                         type: 'path'
                     };
-                    if (lastScope == 'reference.path.string') {
+                    if (lastScope == 'reference.path.quoted.string') {
                         suggestion.atomTS_IsReference = {
                             relativePath: relativePath
                         };
                     }
-                    if (lastScope == 'require.path.string') {
+                    if (lastScope == 'require.path.quoted.string') {
                         suggestion.atomTS_IsImport = {
                             relativePath: relativePath
                         };
                     }
-                    if (lastScope == 'es6import.path.string') {
+                    if (lastScope == 'es6import.path.quoted.string') {
                         suggestion.atomTS_IsES6Import = {
                             relativePath: relativePath
                         };
@@ -79,7 +60,8 @@ exports.provider = {
                 explicitlyTriggered = false;
             }
             else {
-                if (options.prefix && options.prefix.trim() == ';') {
+                var prefix = options.prefix.trim();
+                if (prefix === '' || prefix === ';') {
                     return Promise.resolve([]);
                 }
             }
@@ -101,9 +83,13 @@ exports.provider = {
                         };
                     }
                     else {
+                        var prefix = options.prefix;
+                        if (c.name && c.name.startsWith('$')) {
+                            prefix = "$" + prefix;
+                        }
                         return {
                             text: c.name,
-                            replacementPrefix: resp.endsInPunctuation ? '' : options.prefix,
+                            replacementPrefix: resp.endsInPunctuation ? '' : prefix.trim(),
                             rightLabel: c.display,
                             leftLabel: c.kind,
                             type: atomUtils.kindToType(c.kind),
@@ -111,15 +97,6 @@ exports.provider = {
                         };
                     }
                 });
-                if (tsSnipPrefixLookup[options.prefix]) {
-                    var suggestion = {
-                        snippet: tsSnipPrefixLookup[options.prefix].body,
-                        replacementPrefix: options.prefix,
-                        rightLabelHTML: "snippet: " + options.prefix,
-                        type: 'snippet'
-                    };
-                    suggestions.unshift(suggestion);
-                }
                 return suggestions;
             });
             return promisedSuggestions;
@@ -133,15 +110,16 @@ exports.provider = {
             if (options.suggestion.atomTS_IsReference) {
                 options.editor.moveToBeginningOfLine();
                 options.editor.selectToEndOfLine();
-                options.editor.replaceSelectedText(null, function () { return '/// <reference path="' + options.suggestion.atomTS_IsReference.relativePath + '"/>'; });
+                options.editor.replaceSelectedText(null, function () { return '/// <reference path="' + options.suggestion.atomTS_IsReference.relativePath + '.ts"/>'; });
             }
             if (options.suggestion.atomTS_IsImport) {
                 options.editor.moveToBeginningOfLine();
                 options.editor.selectToEndOfLine();
-                var groups = /^\s*import\s*(\w*)\s*=\s*require\s*\(\s*(["'])/.exec(options.editor.getSelectedText());
-                var alias = groups[1];
-                quote = quote || groups[2];
-                options.editor.replaceSelectedText(null, function () { return "import " + alias + " = require(" + quote + options.suggestion.atomTS_IsImport.relativePath + quote + ");"; });
+                var groups = /^(\s*)import\s*(\w*)\s*=\s*require\s*\(\s*(["'])/.exec(options.editor.getSelectedText());
+                var leadingWhiteSpace = groups[1];
+                var alias = groups[2];
+                quote = quote || groups[3];
+                options.editor.replaceSelectedText(null, function () { return leadingWhiteSpace + "import " + alias + " = require(" + quote + options.suggestion.atomTS_IsImport.relativePath + quote + ");"; });
             }
             if (options.suggestion.atomTS_IsES6Import) {
                 var row = options.editor.getCursorBufferPosition().row;

@@ -1,3 +1,7 @@
+# FAQ
+
+Please checkout [the FAQ](https://github.com/TypeStrong/atom-typescript/blob/master/docs/faq.md) before creating a new issue :rose:
+
 # TIP
 Before doing any meaningful work or even investigating [please create an issue for discussion](https://github.com/TypeStrong/atom-typescript/issues) so we don't have duplicate work and we don't step on your toes.
 
@@ -7,18 +11,24 @@ Simply clone the repository, and then link the folder into your packages directo
 ```bash
 git clone https://github.com/TypeStrong/atom-typescript.git
 cd atom-typescript
+npm install
 apm link -l
 ```
 
 You still have to reload atom with `ctrl+alt+r` to test your changes.
 
+Now you can use atom-typescript *to develop atom-typescript*. This is covered more in the workflow https://github.com/TypeStrong/atom-typescript/blob/master/CONTRIBUTING.md#workflow
+
 (Note: [There is more guidance here](https://github.com/atom/atom/blob/master/docs/contributing-to-packages.md) but what we have is sufficient. `apm link -l` creates a symlink for the folder into `%HOMEPATH%\.atom\packages`)
 
-**Optional**: If you are working on the binaries that are used if we deploy the package to NPM you can run (again from the directory that has `package.json`): 
+**Optional**: If you are working on the binaries that are used if we deploy the package to NPM you can run (again from the directory that has `package.json`):
 
 ```bash
 npm link
 ```
+
+## Pull
+Whenever you pull in latest changes, you should run `npm install`. Whenever we update to latest TypeScript we need to recompile all our js to make sure everybody gets the same code.
 
 ## Git
 You need to have git. Note on windows long file paths can be an issue so run:
@@ -30,12 +40,20 @@ And use `Shift+Delete` to delete files if simple `delete` doesn't work.
 
 # Various
 
+## NTypeScript
+We use a slightly modified (functionally equivalent) build of TypeScript called NTypeScript. The main motivation behind it is easier debugging and development workflow when consuming it as an NPM package. See [readme for details](https://github.com/TypeStrong/ntypescript#ntypescript).
+
+Update the version used by Atom-TypeScript using `npm install ntypescript@latest --save --save-exact` and then do some manual testing, and then rebuild the whole project.
+
 ## Publishing
-`apm publish minor`
 
-or `apm publish patch` depending on how you feel about your changes.
+* If you have only fixed bugs in a backward-compatible way (or consider your changes very minimal), run `apm publish patch`.
+* If you have implemented new functionality, run `apm publish minor`. (A TypeScript update should at least be minor).
+* For breaking changes run `apm publish major`. These must be justified with a reason documented in `changelog.md`
 
-Note: `apm publish major` must be justified with a corresponding change in changelog.md
+Additional Notes:
+* The `apm` command does a lot for you *that you shouldn't do manually*. It automatically updates the `package.json` + `creates a git tag` + `pushes to git` + `pushes to apm`.
+* On windows : storing your github password using `git config --global credential.helper wincred` helps smooth out the `apm publish <type>` experience.
 
 ## Workflow
 **We develop atom-typescript with atom-typescript**
@@ -48,7 +66,7 @@ Some shortcuts:
 There are *lots of ways* to do this. The ones we use right now:
 
 * You can do `console.error` from `projectService` and it will get logged to the atom's console (`ctrl+alt+i`). That's the quickest.
-* You can call `projectService` in `sync` from the UI thread if you want to debug using atom's built in tools (`ctrl+alt+i`). Set `parent.debug` to true and it takes care of the rest. [Here is the code](https://github.com/TypeStrong/atom-typescript/blob/d88babd82a8390ef43acac474965bc6d2f65083b/lib/worker/parent.ts#L5).
+* You can call `projectService` in `sync` from the UI thread if you want to debug using atom's built in tools (`ctrl+alt+i`). Set `debugSync` to true in `./lib/worker/debug.ts`, and it takes care of the rest.
 
 Also [if there is an error in `projectService` it gets logged to the console as a rejected promise](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/debugPromises.gif).
 
@@ -81,29 +99,8 @@ Advantage: you only need to define the query/response interface once (in `projec
 ## Language Service Documentation
 The TypeScript Language service docs: https://github.com/Microsoft/TypeScript/wiki/Using-the-Compiler-API
 
-## Depending upon other atom packages
-There isn't a documented way : https://discuss.atom.io/t/depending-on-other-packages/2360/16
-
-So using https://www.npmjs.com/package/atom-package-dependencies
-
-```js
-var apd = require('atom-package-dependencies');
-
-var mdp = apd.require('markdown-preview');
-mdp.toggle();
-
-// Also
-apd.install();
-```
-
 ## Showing errors in atom
 Done using the `linter` plugin. If you think about it. TypeScript is really just a super powerful version of `jshint` and that is the reason to use `linter` for errors.
-
-You need to inherit from `Linter` class from the `linter`: http://atomlinter.github.io/Linter/
-```js
-var linterPath = atom.packages.getLoadedPackage("linter").path
-var Linter:LinterClass = require linterPath+"/lib/linter"
-```
 Just look at `linter.ts` in our code.
 
 ## Grammar
@@ -112,9 +109,9 @@ Please see https://github.com/TypeStrong/atom-typescript/tree/master/docs/gramma
 
 
 ## QuickFix
-The quickest way is to copy an existing one located in the [quick fix directory](https://github.com/TypeStrong/atom-typescript/tree/a91f7e0c935ed2bdc2c642350af50a7a5aed70ad/lib/main/lang/fixmyts/quickFixes). Copy one of these files into a new quick fix. 
+The quickest way is to copy an existing one located in the [quick fix directory](https://github.com/TypeStrong/atom-typescript/tree/a91f7e0c935ed2bdc2c642350af50a7a5aed70ad/lib/main/lang/fixmyts/quickFixes). Copy one of these files into a new quick fix.
 
-Quick fixes need to implement the `QuickFix` interface ([code here](https://github.com/TypeStrong/atom-typescript/blob/a91f7e0c935ed2bdc2c642350af50a7a5aed70ad/lib/main/lang/fixmyts/quickFix.ts#L46-L53)). 
+Quick fixes need to implement the `QuickFix` interface ([code here](https://github.com/TypeStrong/atom-typescript/blob/a91f7e0c935ed2bdc2c642350af50a7a5aed70ad/lib/main/lang/fixmyts/quickFix.ts#L46-L53)).
 
 Once you have the quickfix created just put it into the [quickfix registry](https://github.com/TypeStrong/atom-typescript/blob/a91f7e0c935ed2bdc2c642350af50a7a5aed70ad/lib/main/lang/fixmyts/quickFixRegistry.ts#L14-L24) so that the infrastructure picks it up.
 

@@ -1,28 +1,28 @@
 
 module.exports =
 class Palette
-  constructor: (@colors={}) ->
+  @deserialize: (state) -> new Palette(state.variables)
 
-  getColor: (name) -> @colors[name]
+  constructor: (@variables=[]) ->
 
-  getNames: (ref) ->
-    @tuple()
-    .filter ([_,color]) -> color.isEqual(ref)
-    .map ([name]) -> name
+  getTitle: -> 'Palette'
+
+  getURI: -> 'pigments://palette'
+
+  getIconName: -> "pigments"
 
   sortedByColor: ->
-    @tuple().sort ([_, a], [__, b]) => @compareColors(a,b)
+    @variables.slice().sort ({color:a}, {color:b}) => @compareColors(a,b)
 
   sortedByName: ->
-    @tuple().sort ([a],[b]) -> if a > b then 1 else if a < b then -1 else 0
+    collator = new Intl.Collator("en-US", numeric: true)
+    @variables.slice().sort ({name:a}, {name:b}) -> collator.compare(a,b)
 
-  getColorsNames: -> Object.keys(@colors)
+  getColorsNames: -> @variables.map (v) -> v.name
 
-  getColorsCount: -> @getColorsNames().length
+  getColorsCount: -> @variables.length
 
-  eachColor: (iterator) -> iterator(k,v) for k,v of @colors
-
-  tuple: -> @eachColor (name, color) -> [name, color]
+  eachColor: (iterator) -> iterator(v) for v in @variables
 
   compareColors: (a,b) ->
     [aHue, aSaturation, aLightness] = a.hsl
@@ -41,3 +41,9 @@ class Palette
       1
     else
       0
+
+  serialize: ->
+    {
+      deserializer: 'Palette'
+      @variables
+    }

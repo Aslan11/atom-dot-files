@@ -1,8 +1,8 @@
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var sp = require('atom-space-pen-views');
 var atomUtils = require("../atomUtils");
@@ -42,7 +42,7 @@ var DependencyView = (function (_super) {
         });
     };
     return DependencyView;
-})(sp.ScrollView);
+}(sp.ScrollView));
 exports.DependencyView = DependencyView;
 var prefixes = {
     circle: 'circle'
@@ -69,11 +69,11 @@ function renderGraph(dependencies, mainContent, display) {
             nodes.classed('filtered-out', true);
             links.classed('filtered-out', true);
             text.classed('filtered-out', true);
-            var filteredNodes = graph.selectAll("circle[data-name*=" + htmlName({ name: val }) + "]");
+            var filteredNodes = graph.selectAll("circle[data-name*=\"" + htmlName({ name: val }) + "\"]");
             filteredNodes.classed('filtered-out', false);
-            var filteredLinks = graph.selectAll("[data-source*=" + htmlName({ name: val }) + "][data-target*=" + htmlName({ name: val }) + "]");
+            var filteredLinks = graph.selectAll("[data-source*=\"" + htmlName({ name: val }) + "\"][data-target*=\"" + htmlName({ name: val }) + "\"]");
             filteredLinks.classed('filtered-out', false);
-            var filteredText = graph.selectAll("text[data-name*=" + htmlName({ name: val }) + "]");
+            var filteredText = graph.selectAll("text[data-name*=\"" + htmlName({ name: val }) + "\"]");
             filteredText.classed('filtered-out', false);
         }
     });
@@ -88,17 +88,17 @@ function renderGraph(dependencies, mainContent, display) {
     if (d3Graph.cycles().length) {
         var cycles = d3Graph.cycles();
         var message = '';
-        var textContent = '';
-        for (var _i = 0; _i < cycles.length; _i++) {
-            var cycle = cycles[_i];
+        var textContent_1 = '';
+        for (var _i = 0, cycles_1 = cycles; _i < cycles_1.length; _i++) {
+            var cycle = cycles_1[_i];
             message += '<h3>Cycle Found: </h3>';
             message += cycle.join(' <br/> ') + '<br/>';
-            textContent += '---Cycle Found---' + os.EOL;
-            textContent += cycle.join(os.EOL) + os.EOL;
+            textContent_1 += '---Cycle Found---' + os.EOL;
+            textContent_1 += cycle.join(os.EOL) + os.EOL;
         }
         messagesElement.html(message);
         copyDisplay.show().on('click', function () {
-            atom.clipboard.write(textContent);
+            atom.clipboard.write(textContent_1);
             atom.notifications.addInfo('Copied!');
         });
     }
@@ -238,14 +238,14 @@ function renderGraph(dependencies, mainContent, display) {
                 elmNodes.attr('fill-opacity', 1);
                 elmNodes.attr('stroke-opacity', 1);
                 elmNodes.classed('dimmed', false);
-                var outgoingLink = graph.selectAll('path.link[data-source=' + htmlName(o.source) + ']');
+                var outgoingLink = graph.selectAll('path.link[data-source="' + htmlName(o.source) + '"]');
                 outgoingLink.attr('data-show', 'true');
                 outgoingLink.attr('marker-end', 'url(#regular)');
                 outgoingLink.classed('outgoing', true);
             }
             else if (o.target.name === d.name) {
                 this.classList.remove('dimmed');
-                var incommingLink = graph.selectAll('path.link[data-target=' + htmlName(o.target) + ']');
+                var incommingLink = graph.selectAll('path.link[data-target="' + htmlName(o.target) + '"]');
                 incommingLink.attr('data-show', 'true');
                 incommingLink.attr('marker-end', 'url(#regular)');
                 incommingLink.classed('incomming', true);
@@ -369,7 +369,7 @@ var D3Graph = (function () {
         return this.circularPaths;
     };
     return D3Graph;
-})();
+}());
 function linkArc(d) {
     var targetX = d.target.x;
     var targetY = d.target.y;

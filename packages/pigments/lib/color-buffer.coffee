@@ -1,14 +1,15 @@
+fs = require 'fs'
 {Emitter, CompositeDisposable, Task, Range} = require 'atom'
-ProjectVariable = require './project-variable'
 Color = require './color'
 ColorMarker = require './color-marker'
+ColorExpression = require './color-expression'
 VariablesCollection = require './variables-collection'
 
 module.exports =
 class ColorBuffer
   constructor: (params={}) ->
     {@editor, @project, colorMarkers} = params
-    {@id} = @editor
+    {@id, @displayBuffer} = @editor
     @emitter = new Emitter
     @subscriptions = new CompositeDisposable
     @ignoredScopes=[]
@@ -16,6 +17,9 @@ class ColorBuffer
     @colorMarkersByMarkerId = {}
 
     @subscriptions.add @editor.onDidDestroy => @destroy()
+    @subscriptions.add @editor.displayBuffer.onDidTokenize =>
+      @getColorMarkers()?.forEach (marker) ->
+        marker.checkMarkerScope(true)
 
     @subscriptions.add @editor.onDidChange =>
       @terminateRunningTask() if @initialized and @variableInitialized
@@ -35,21 +39,38 @@ class ColorBuffer
       @project.appendPath(path) if @isVariablesSource()
       @update()
 
+    if @project.getPaths()? and @isVariablesSource() and !@project.hasPath(@editor.getPath())
+      if fs.existsSync(@editor.getPath())
+        @project.appendPath(@editor.getPath())
+      else
+        saveSubscription = @editor.onDidSave ({path}) =>
+          @project.appendPath(path)
+          @update()
+          saveSubscription.dispose()
+          @subscriptions.remove(saveSubscription)
+
+        @subscriptions.add(saveSubscription)
+
     @subscriptions.add @project.onDidUpdateVariables =>
+      return unless @variableInitialized
       @scanBufferForColors().then (results) => @updateColorMarkers(results)
+
+    @subscriptions.add @project.onDidChangeIgnoredScopes =>
+      @updateIgnoredScopes()
 
     @subscriptions.add atom.config.observe 'pigments.delayBeforeScan', (@delayBeforeScan=0) =>
 
-    @subscriptions.add atom.config.observe 'pigments.ignoredScopes', (@ignoredScopes=[]) =>
-      @emitter.emit 'did-update-color-markers', {created: [], destroyed: []}
-
-    # Needed to clean the serialized markers from previous versions
-    @editor.findMarkers(type: 'pigments-variable').forEach (m) => m.destroy()
+    if @editor.addMarkerLayer?
+      @markerLayer = @editor.addMarkerLayer()
+      @editor.findMarkers(type: 'pigments-color').forEach (m) -> m.destroy()
+    else
+      @markerLayer = @editor
 
     if colorMarkers?
       @restoreMarkersState(colorMarkers)
       @cleanUnusedTextEditorMarkers()
 
+    @updateIgnoredScopes()
     @initialize()
 
   onDidUpdateColorMarkers: (callback) ->
@@ -65,10 +86,13 @@ class ColorBuffer
     @updateVariableRanges()
 
     @initializePromise = @scanBufferForColors().then (results) =>
-      @colorMarkers = @createColorMarkers(results)
+      @createColorMarkers(results)
+    .then (results) =>
+      @colorMarkers = results
       @initialized = true
 
-    @variablesAvailable()
+    @initializePromise.then => @variablesAvailable()
+
     @initializePromise
 
   restoreMarkersState: (colorMarkers) ->
@@ -77,7 +101,7 @@ class ColorBuffer
     @colorMarkers = colorMarkers
     .filter (state) -> state?
     .map (state) =>
-      marker = @editor.getMarker(state.markerId) ? @editor.markBufferRange(state.bufferRange, {
+      marker = @editor.getMarker(state.markerId) ? @markerLayer.markBufferRange(state.bufferRange, {
         type: 'pigments-color'
         invalidate: 'touch'
       })
@@ -88,10 +112,11 @@ class ColorBuffer
         marker
         color
         text: state.text
+        colorBuffer: this
       }
 
   cleanUnusedTextEditorMarkers: ->
-    @editor.findMarkers(type: 'pigments-color').forEach (m) =>
+    @markerLayer.findMarkers(type: 'pigments-color').forEach (m) =>
       m.destroy() unless @colorMarkersByMarkerId[m.id]?
 
   variablesAvailable: ->
@@ -107,11 +132,14 @@ class ColorBuffer
       @scanBufferForColors variables: results
     .then (results) =>
       @updateColorMarkers(results)
+    .then =>
       @variableInitialized = true
     .catch (reason) ->
       console.log reason
 
   update: ->
+    @terminateRunningTask()
+
     promise = if @isIgnored()
       @scanBufferForVariables()
     else unless @isVariablesSource()
@@ -129,11 +157,14 @@ class ColorBuffer
   terminateRunningTask: -> @task?.terminate()
 
   destroy: ->
+    return if @destroyed
+
     @terminateRunningTask()
     @subscriptions.dispose()
-    @emitter.emit 'did-destroy'
     @colorMarkers?.forEach (marker) -> marker.destroy()
     @destroyed = true
+    @emitter.emit 'did-destroy'
+    @emitter.dispose()
 
   isVariablesSource: -> @project.isVariablesSourcePath(@editor.getPath())
 
@@ -142,6 +173,17 @@ class ColorBuffer
     @project.isIgnoredPath(p) or not atom.project.contains(p)
 
   isDestroyed: -> @destroyed
+
+  getPath: -> @editor.getPath()
+
+  updateIgnoredScopes: ->
+    @ignoredScopes = @project.getIgnoredScopes().map (scope) ->
+      try new RegExp(scope)
+    .filter (re) -> re?
+
+    @getColorMarkers()?.forEach (marker) -> marker.checkMarkerScope(true)
+    @emitter.emit 'did-update-color-markers', {created: [], destroyed: []}
+
 
   ##    ##     ##    ###    ########   ######
   ##    ##     ##   ## ##   ##     ## ##    ##
@@ -167,6 +209,7 @@ class ColorBuffer
     buffer = @editor.getBuffer()
     config =
       buffer: @editor.getText()
+      registry: @project.getVariableExpressionsRegistry().serialize()
 
     new Promise (resolve, reject) =>
       @task = Task.once(
@@ -202,47 +245,104 @@ class ColorBuffer
   ##    ##     ## ##     ## ##    ##  ##   ##  ##       ##    ##  ##    ##
   ##    ##     ## ##     ## ##     ## ##    ## ######## ##     ##  ######
 
+  getMarkerLayer: -> @markerLayer
+
   getColorMarkers: -> @colorMarkers
 
-  getValidColorMarkers: -> @getColorMarkers().filter (m) -> m.color.isValid()
+  getValidColorMarkers: ->
+    @getColorMarkers()?.filter((m) -> m.color?.isValid() and not m.isIgnored()) ? []
+
+  getColorMarkerAtBufferPosition: (bufferPosition) ->
+    markers = @markerLayer.findMarkers({
+      type: 'pigments-color'
+      containsBufferPosition: bufferPosition
+    })
+
+    for marker in markers
+      if @colorMarkersByMarkerId[marker.id]?
+        return @colorMarkersByMarkerId[marker.id]
 
   createColorMarkers: (results) ->
-    return if @destroyed
-    results.map (result) =>
-      marker = @editor.markBufferRange(result.bufferRange, {
-        type: 'pigments-color'
-        invalidate: 'touch'
-      })
-      @colorMarkersByMarkerId[marker.id] =
-      new ColorMarker {marker, color: result.color, text: result.match}
+    return Promise.resolve([]) if @destroyed
 
-  updateColorMarkers: (results) ->
+    new Promise (resolve, reject) =>
+      newResults = []
+
+      processResults = =>
+        startDate = new Date
+
+        return resolve([]) if @editor.isDestroyed()
+
+        while results.length
+          result = results.shift()
+
+          marker = @markerLayer.markBufferRange(result.bufferRange, {
+            type: 'pigments-color'
+            invalidate: 'touch'
+          })
+          newResults.push @colorMarkersByMarkerId[marker.id] = new ColorMarker {
+            marker
+            color: result.color
+            text: result.match
+            colorBuffer: this
+          }
+
+          if new Date() - startDate > 10
+            requestAnimationFrame(processResults)
+            return
+
+        resolve(newResults)
+
+      processResults()
+
+  findExistingMarkers: (results) ->
     newMarkers = []
     toCreate = []
-    for result in results
-      if marker = @findColorMarker(result)
-        newMarkers.push(marker)
+
+    new Promise (resolve, reject) =>
+      processResults = =>
+        startDate = new Date
+
+        while results.length
+          result = results.shift()
+
+          if marker = @findColorMarker(result)
+            newMarkers.push(marker)
+          else
+            toCreate.push(result)
+
+          if new Date() - startDate > 10
+            requestAnimationFrame(processResults)
+            return
+
+        resolve({newMarkers, toCreate})
+
+      processResults()
+
+  updateColorMarkers: (results) ->
+    newMarkers = null
+    createdMarkers = null
+
+    @findExistingMarkers(results).then ({newMarkers: markers, toCreate}) =>
+      newMarkers = markers
+      @createColorMarkers(toCreate)
+    .then (results) =>
+      createdMarkers = results
+      newMarkers = newMarkers.concat(results)
+
+      if @colorMarkers?
+        toDestroy = @colorMarkers.filter (marker) -> marker not in newMarkers
+        toDestroy.forEach (marker) =>
+          delete @colorMarkersByMarkerId[marker.id]
+          marker.destroy()
       else
-        toCreate.push(result)
+        toDestroy = []
 
-    createdMarkers = @createColorMarkers(toCreate)
-    newMarkers = newMarkers.concat(createdMarkers)
-
-    if @colorMarkers?
-      toDestroy = @colorMarkers.filter (marker) -> marker not in newMarkers
-      toDestroy.forEach (marker) -> marker.destroy()
-
-      for id,marker of @colorMarkersByMarkerId when marker not in newMarkers
-        delete @colorMarkersByMarkerId[id]
-
-    else
-      toDestroy = []
-
-    @colorMarkers = newMarkers
-    @emitter.emit 'did-update-color-markers', {
-      created: createdMarkers
-      destroyed: toDestroy
-    }
+      @colorMarkers = newMarkers
+      @emitter.emit 'did-update-color-markers', {
+        created: createdMarkers
+        destroyed: toDestroy
+      }
 
   findColorMarker: (properties={}) ->
     return unless @colorMarkers?
@@ -251,20 +351,34 @@ class ColorBuffer
 
   findColorMarkers: (properties={}) ->
     properties.type = 'pigments-color'
-    markers = @editor.findMarkers(properties)
+    markers = @markerLayer.findMarkers(properties)
     markers.map (marker) =>
       @colorMarkersByMarkerId[marker.id]
     .filter (marker) -> marker?
 
   findValidColorMarkers: (properties) ->
     @findColorMarkers(properties).filter (marker) =>
-      marker?.color?.isValid() and not @markerScopeIsIgnored(marker)
+      marker? and marker.color?.isValid() and not marker?.isIgnored()
+
+  selectColorMarkerAndOpenPicker: (colorMarker) ->
+    return if @destroyed
+
+    @editor.setSelectedBufferRange(colorMarker.marker.getBufferRange())
+
+    # For the moment it seems only colors in #RRGGBB format are detected
+    # by the color picker, so we'll exclude anything else
+    return unless @editor.getSelectedText()?.match(/^#[0-9a-fA-F]{3,8}$/)
+
+    if @project.colorPickerAPI?
+      @project.colorPickerAPI.open(@editor, @editor.getLastCursor())
+
 
   scanBufferForColors: (options={}) ->
     return Promise.reject("This ColorBuffer is already destroyed") if @destroyed
     results = []
     taskPath = require.resolve('./tasks/scan-buffer-colors-handler')
     buffer = @editor.getBuffer()
+    registry = @project.getColorExpressionsRegistry().serialize()
 
     if options.variables?
       collection = new VariablesCollection()
@@ -272,14 +386,24 @@ class ColorBuffer
       options.variables = collection
 
     variables = if @isVariablesSource()
+      # In the case of files considered as source, the variables in the project
+      # are needed when parsing the files.
       (options.variables?.getVariables() ? []).concat(@project.getVariables() ? [])
     else
+      # Files that are not part of the sources will only use the variables
+      # defined in them and so the global variables expression must be
+      # discarded before sending the registry to the child process.
       options.variables?.getVariables() ? []
+
+    delete registry.expressions['pigments:variables']
+    delete registry.regexpString
 
     config =
       buffer: @editor.getText()
+      bufferPath: @getPath()
       variables: variables
       colorVariables: variables.filter (v) -> v.isColor
+      registry: registry
 
     new Promise (resolve, reject) =>
       @task = Task.once(
@@ -298,17 +422,6 @@ class ColorBuffer
             buffer.positionForCharacterIndex(res.range[1])
           ]
           res
-
-  markerScopeIsIgnored: (marker) ->
-    range = marker.marker.getBufferRange()
-    scope = @editor.displayBuffer.scopeDescriptorForBufferPosition(range.start)
-    scopeChain = scope.getScopeChain()
-
-    @ignoredScopes.some (scopeRegExp) ->
-      try
-        scopeChain.match(new RegExp(scopeRegExp))
-      catch
-        return false
 
   serialize: ->
     {

@@ -8,7 +8,7 @@ JavaScript developers can now just open a `.ts` file and start hacking away like
 
 1. Install [atom](https://atom.io).
 2. `apm install atom-typescript` (`apm` needs `git` in your path)
-3. Fire up atom. Wait for the message: `AtomTS: Dependencies installed correctly. Enjoy TypeScript ♥` **It may take up to 5 minutes for this message to appear. Be patient!**
+3. Fire up atom. Open a TypeScript file. Potentially wait for further installs (just `apm install linter` if its not there already).
 
 **Additional Notes**: [Some packages we love](https://github.com/TypeStrong/atom-typescript/blob/master/docs/packages.md).
 
@@ -29,7 +29,9 @@ JavaScript developers can now just open a `.ts` file and start hacking away like
 * Compile on save
 * Project Context Support (`tsconfig.json`)
 * Project Build Support
-* Format code
+* `package.json` Support
+* React Support
+* Format code (configurable to be on save)
 * Goto Declaration
 * Find References
 * Block comment and uncomment
@@ -38,8 +40,10 @@ JavaScript developers can now just open a `.ts` file and start hacking away like
 * TypeScript context menu
 * Symbols in Project
 * Symbols in File
+* Semantic View
 * Rename refactoring
 * Quick Fix
+* Toggle Breakpoint
 * Common Snippets
 * `import` / `/// <reference` relative path resolution
 * Output Toggle
@@ -65,7 +69,7 @@ Just hover
 ![you definitely get the point](https://raw.githubusercontent.com/TypeStrong/atom-typescript/master/docs/screens/hover.png)
 
 ## Compile on save
-TypeScript files will be compiled on save. Different notifications are given if `emit` was successful or not. [Configuration driven by `tsconfig.json`](https://github.com/TypeStrong/atom-typescript/blob/master/docs/tsconfig.md)
+TypeScript files will be compiled on save automatically. Different notifications are given if `emit` was successful or not. If you need to disable this feature, add `"compileOnSave": false` in your [`tsconfig.json`](https://github.com/TypeStrong/atom-typescript/blob/master/docs/tsconfig.md#compileonsave).
 
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript/master/docs/screens/compile%20success.png)
 
@@ -74,7 +78,7 @@ TypeScript files will be compiled on save. Different notifications are given if 
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript/master/docs/screens/emit%20error.png)
 
 ## Project Support
-Supported via `tsconfig.json` ([read more](https://github.com/TypeStrong/atom-typescript/blob/master/docs/tsconfig.md)) which is going to be the defacto Project file format for the next versions of TypeScript.
+Supported via [`tsconfig.json`](https://github.com/TypeStrong/atom-typescript/blob/master/docs/tsconfig.md) which is going to be the defacto Project file format for the next versions of TypeScript.
 
 It also supports `filesGlob` which will expand `files` for you based on `minmatch|glob|regex` (similar to grunt).
 
@@ -87,8 +91,23 @@ Shortcut: `F6`. If there are any errors they are shown as well.
 
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript/master/docs/screens/build%20errors.png)
 
+## NPM Module Support
+We have a sample NPM module : https://github.com/basarat/ts-npm-module  (trick : in tsconfig have `"declaration" : true` an in package.json have a `typings` field pointing to the `main` file) and its usage is demoed in https://github.com/basarat/ts-npm-module-consume.
+
+## React Support
+
+### Configuration tips
+
+Covered here : http://basarat.gitbooks.io/typescript/content/docs/jsx/tsx.html
+
+### Html to TSX
+
+![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/htmltotsx.gif)
+
 ## Format Code
 Shortcut : `ctrl+alt+l` or `cmd+alt+l`. Will format just the selection if you have something selected otherwise it will format the entire file.
+
+Format on save is covered [here](https://github.com/TypeStrong/atom-typescript/blob/master/docs/tsconfig.md#formatOnSave)
 
 ## Go to Declaration
 Shortcut : `F12`. Will open the *first* declaration of the said item for now. (Note: some people call it Go to Definition)
@@ -112,6 +131,11 @@ Integrates with atom's symbols view (`ctrl+r` or `cmd+r`) to provide you with a 
 
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/symbolsView.gif)
 
+## Semantic View
+A bird's eye view of the current file. Use command `toggle semantic view`. The view updates while you edit the code. You can also click to jump to any portion of the file.
+
+![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/semanticView.png)
+
 ## Project Symbols View
 Also called Go To Type in other IDEs. Integrates with atom's project level symbols (`ctrl+shift+r` or `cmd+shift+r`) to provide you with a list of searchable symbols in the *entire typescript project*.
 
@@ -129,8 +153,13 @@ Press the `TypeScript: Quick Fix` shortcut `alt+enter` at an error location to t
 ### Add class members
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/addClassMember.gif)
 
-### More Quick fixes 
+### More Quick fixes
 We are actively adding quick fixes so [**go here for an up to date list**](https://github.com/TypeStrong/atom-typescript/blob/master/docs/quickfix.md).
+
+## Toggle Breakpoint
+Use command `TypeScript: Toggle Breakpoint` shortcut `f9`:
+
+![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/toggleBreakpoint.gif)
 
 ## tsconfig validation
 We will validate it and help you to fix it :)
@@ -165,7 +194,7 @@ Also command : `TypeScript: Ast Full` that includes the `trivia` (punctuation, c
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/astFull.png)
 
 ## Dependency View
-Command : `Typescript: Dependency View`. A dependency viewer for insight into the project. You can zoom, pan, drag points around and hover over nodes. ([more details](https://github.com/TypeStrong/atom-typescript/blob/master/docs/dependency-view.md))
+Command : `Typescript: Dependency View`. A dependency viewer for insight into the project if you use external modules. You can zoom, pan, drag points around and hover over nodes. ([more details](https://github.com/TypeStrong/atom-typescript/blob/master/docs/dependency-view.md))
 ![](https://raw.githubusercontent.com/TypeStrong/atom-typescript-examples/master/screens/dependencyView/teaser.png)
 
 ## Sync

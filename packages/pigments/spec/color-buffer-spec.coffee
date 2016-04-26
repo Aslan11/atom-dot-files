@@ -1,6 +1,8 @@
 path = require 'path'
 ColorBuffer = require '../lib/color-buffer'
-jsonFixture = require('./spec-helper').jsonFixture(__dirname, 'fixtures')
+registry = require '../lib/color-expressions'
+jsonFixture = require('./helpers/fixtures').jsonFixture(__dirname, 'fixtures')
+
 
 describe 'ColorBuffer', ->
   [editor, colorBuffer, pigments, project] = []
@@ -23,6 +25,8 @@ describe 'ColorBuffer', ->
 
   beforeEach ->
     atom.config.set 'pigments.delayBeforeScan', 0
+    atom.config.set 'pigments.ignoredBufferNames', []
+    atom.config.set 'pigments.extendedFiletypesForColorWords', ['*']
     atom.config.set 'pigments.sourceNames', [
       '*.styl'
       '*.less'
@@ -33,12 +37,84 @@ describe 'ColorBuffer', ->
     waitsForPromise ->
       atom.workspace.open('four-variables.styl').then (o) -> editor = o
 
-    waitsForPromise -> atom.packages.activatePackage('pigments').then (pkg) ->
-      pigments = pkg.mainModule
-      project = pigments.getProject()
+    waitsForPromise ->
+      atom.packages.activatePackage('pigments').then (pkg) ->
+        pigments = pkg.mainModule
+        project = pigments.getProject()
+      .catch (err) -> console.error err
+
+  afterEach ->
+    colorBuffer?.destroy()
 
   it 'creates a color buffer for each editor in the workspace', ->
     expect(project.colorBuffersByEditorId[editor.id]).toBeDefined()
+
+  describe 'when the file path matches an entry in ignoredBufferNames', ->
+    beforeEach ->
+      expect(project.hasColorBufferForEditor(editor)).toBeTruthy()
+
+      atom.config.set 'pigments.ignoredBufferNames', ['**/*.styl']
+
+    it 'destroys the color buffer for this file', ->
+      expect(project.hasColorBufferForEditor(editor)).toBeFalsy()
+
+    it 'recreates the color buffer when the settings no longer ignore the file', ->
+      expect(project.hasColorBufferForEditor(editor)).toBeFalsy()
+
+      atom.config.set 'pigments.ignoredBufferNames', []
+
+      expect(project.hasColorBufferForEditor(editor)).toBeTruthy()
+
+    it 'prevents the creation of a new color buffer', ->
+      waitsForPromise ->
+        atom.workspace.open('variables.styl').then (o) -> editor = o
+
+      runs ->
+        expect(project.hasColorBufferForEditor(editor)).toBeFalsy()
+
+  describe 'when an editor with a path is not in the project paths is opened', ->
+    beforeEach ->
+      waitsFor -> project.getPaths()?
+
+    describe 'when the file is already saved on disk', ->
+      pathToOpen = null
+
+      beforeEach ->
+        pathToOpen = project.paths.shift()
+
+      it 'adds the path to the project immediately', ->
+        spyOn(project, 'appendPath')
+
+        waitsForPromise ->
+          atom.workspace.open(pathToOpen).then (o) ->
+            editor = o
+            colorBuffer = project.colorBufferForEditor(editor)
+
+        runs ->
+          expect(project.appendPath).toHaveBeenCalledWith(pathToOpen)
+
+
+    describe 'when the file is not yet saved on disk', ->
+      beforeEach ->
+        waitsForPromise ->
+          atom.workspace.open('foo-de-fafa.styl').then (o) ->
+            editor = o
+            colorBuffer = project.colorBufferForEditor(editor)
+
+        waitsForPromise -> colorBuffer.variablesAvailable()
+
+      it 'does not fails when updating the colorBuffer', ->
+        expect(-> colorBuffer.update()).not.toThrow()
+
+      it 'adds the path to the project paths on save', ->
+        spyOn(colorBuffer, 'update').andCallThrough()
+        spyOn(project, 'appendPath')
+        editor.getBuffer().emitter.emit 'did-save', path: editor.getPath()
+
+        waitsFor -> colorBuffer.update.callCount > 0
+
+        runs ->
+          expect(project.appendPath).toHaveBeenCalledWith(editor.getPath())
 
   describe 'when an editor without path is opened', ->
     beforeEach ->
@@ -88,12 +164,14 @@ describe 'ColorBuffer', ->
 
   # FIXME Using a 1s sleep seems to do nothing on Travis, it'll need
   # a better solution.
-  xdescribe 'with rapid changes that triggers a rescan', ->
+  describe 'with rapid changes that triggers a rescan', ->
     beforeEach ->
       colorBuffer = project.colorBufferForEditor(editor)
-      waitsForPromise -> colorBuffer.variablesAvailable()
+      waitsFor ->
+        colorBuffer.initialized and colorBuffer.variableInitialized
 
       runs ->
+        spyOn(colorBuffer, 'terminateRunningTask').andCallThrough()
         spyOn(colorBuffer, 'updateColorMarkers').andCallThrough()
         spyOn(colorBuffer, 'scanBufferForVariables').andCallThrough()
 
@@ -106,14 +184,9 @@ describe 'ColorBuffer', ->
 
       runs ->
         editor.insertText(' ')
-        editor.emitter.emit('did-change')
-        editor.getBuffer().emitter.emit('did-stop-changing')
-
-      waitsFor sleep(1000)
 
     it 'terminates the currently running task', ->
-      expect(colorBuffer.updateColorMarkers.callCount).toEqual(1)
-
+      expect(colorBuffer.terminateRunningTask).toHaveBeenCalled()
 
   describe 'when created without a previous state', ->
     beforeEach ->
@@ -125,7 +198,7 @@ describe 'ColorBuffer', ->
       expect(colorBuffer.getValidColorMarkers().length).toEqual(3)
 
     it 'creates the corresponding markers in the text editor', ->
-      expect(editor.findMarkers(type: 'pigments-color').length).toEqual(4)
+      expect(colorBuffer.getMarkerLayer().findMarkers(type: 'pigments-color').length).toEqual(4)
 
     it 'knows that it is legible as a variables source file', ->
       expect(colorBuffer.isVariablesSource()).toBeTruthy()
@@ -135,6 +208,16 @@ describe 'ColorBuffer', ->
         editor.destroy()
 
         expect(project.colorBuffersByEditorId[editor.id]).toBeUndefined()
+
+    describe '::getColorMarkerAtBufferPosition', ->
+      describe 'when the buffer position is contained in a marker range', ->
+        it 'returns the corresponding color marker', ->
+          colorMarker = colorBuffer.getColorMarkerAtBufferPosition([2, 15])
+          expect(colorMarker).toEqual(colorBuffer.colorMarkers[1])
+
+      describe 'when the buffer position is not contained in a marker range', ->
+        it 'returns undefined', ->
+          expect(colorBuffer.getColorMarkerAtBufferPosition([1, 15])).toBeUndefined()
 
     ##    ##     ##    ###    ########   ######
     ##    ##     ##   ## ##   ##     ## ##    ##
@@ -157,7 +240,7 @@ describe 'ColorBuffer', ->
         expect(updateSpy.argsForCall[0][0].destroyed.length).toEqual(1)
 
       it 'destroys the text editor markers', ->
-        expect(editor.findMarkers(type: 'pigments-color').length).toEqual(4)
+        expect(colorBuffer.getMarkerLayer().findMarkers(type: 'pigments-color').length).toEqual(4)
 
       describe 'when a variable is edited', ->
         [colorsUpdateSpy] = []
@@ -205,7 +288,7 @@ describe 'ColorBuffer', ->
         beforeEach ->
           waitsForPromise -> colorBuffer.variablesAvailable()
 
-        xit 'returns the whole buffer data', ->
+        it 'returns the whole buffer data', ->
           expected = jsonFixture "four-variables-buffer.json", {
             id: editor.id
             root: atom.project.getPaths()[0]
@@ -260,7 +343,7 @@ describe 'ColorBuffer', ->
           expect(colorsUpdateSpy.argsForCall[0][0].created.length).toEqual(1)
 
         it 'removes the previous editor markers', ->
-          expect(editor.findMarkers(type: 'pigments-color').length).toEqual(3)
+          expect(colorBuffer.getMarkerLayer().findMarkers(type: 'pigments-color').length).toEqual(3)
 
       describe 'when new lines changes the markers range', ->
         [colorsUpdateSpy] = []
@@ -296,7 +379,7 @@ describe 'ColorBuffer', ->
           marker = markers[markers.length-1]
           expect(markers.length).toEqual(4)
           expect(marker.color).toBeColor('#336699')
-          expect(editor.findMarkers(type: 'pigments-color').length).toEqual(4)
+          expect(colorBuffer.getMarkerLayer().findMarkers(type: 'pigments-color').length).toEqual(4)
 
         it 'dispatches the new marker in a did-update-color-markers event', ->
           expect(colorsUpdateSpy.argsForCall[0][0].destroyed.length).toEqual(0)
@@ -322,7 +405,7 @@ describe 'ColorBuffer', ->
           expect(colorsUpdateSpy.argsForCall[0][0].created.length).toEqual(0)
 
         it 'removes the previous editor markers', ->
-          expect(editor.findMarkers(type: 'pigments-color').length).toEqual(2)
+          expect(colorBuffer.getMarkerLayer().findMarkers(type: 'pigments-color').length).toEqual(2)
 
     describe 'with a buffer whose scope is not one of source files', ->
       beforeEach ->
@@ -336,6 +419,21 @@ describe 'ColorBuffer', ->
 
       it 'does not renders colors from variables', ->
         expect(colorBuffer.getColorMarkers().length).toEqual(4)
+
+
+    describe 'with a buffer in crlf mode', ->
+      beforeEach ->
+        waitsForPromise ->
+          atom.workspace.open('crlf.styl').then (o) ->
+            editor = o
+
+        runs ->
+          colorBuffer = project.colorBufferForEditor(editor)
+
+        waitsForPromise -> colorBuffer.variablesAvailable()
+
+      it 'creates a marker for each colors', ->
+        expect(colorBuffer.getValidColorMarkers().length).toEqual(2)
 
   ##    ####  ######   ##    ##  #######  ########  ######## ########
   ##     ##  ##    ##  ###   ## ##     ## ##     ## ##       ##     ##
@@ -399,7 +497,7 @@ describe 'ColorBuffer', ->
         colorsUpdateSpy = jasmine.createSpy('did-update-color-markers')
         colorBuffer.onDidUpdateColorMarkers(colorsUpdateSpy)
         editor.moveToBottom()
-        editBuffer '\n\n@new-color = @base0;\n'
+        editBuffer '\n\n@new-color: @base0;\n'
         waitsFor -> colorsUpdateSpy.callCount > 0
 
       it 'finds the newly added color', ->
@@ -491,7 +589,7 @@ describe 'ColorBuffer', ->
         expect(colorMarker.color.variables).toEqual(['base-color'])
 
       it 'restores the editor markers', ->
-        expect(editor.findMarkers(type: 'pigments-color').length).toEqual(4)
+        expect(colorBuffer.getMarkerLayer().findMarkers(type: 'pigments-color').length).toEqual(4)
 
       it 'restores the ability to fetch markers', ->
         expect(colorBuffer.findColorMarkers().length).toEqual(4)

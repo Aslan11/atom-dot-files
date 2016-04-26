@@ -1,5 +1,4 @@
-// Inspiration : https://atom.io/packages/ide-haskell
-// and https://atom.io/packages/ide-flow
+"use strict";
 var atomUtils = require('./atomUtils');
 var parent = require('../../worker/parent');
 var path = require('path');
@@ -21,7 +20,7 @@ function attach(editorView, editor) {
     var filePath = editor.getPath();
     var filename = path.basename(filePath);
     var ext = path.extname(filename);
-    if (ext !== '.ts')
+    if (!atomUtils.isAllowedExtension(ext))
         return;
     if (!fs.existsSync(filePath)) {
         return;
@@ -43,17 +42,13 @@ function attach(editorView, editor) {
     });
     subscriber.subscribe(scroll, 'mouseout', function (e) { return clearExprTypeTimeout(); });
     subscriber.subscribe(scroll, 'keydown', function (e) { return clearExprTypeTimeout(); });
-    atom.commands.add('atom-text-editor', 'editor:will-be-removed', function (e) {
-        if (e.currentTarget == editorView[0]) {
-            deactivate();
-        }
-    });
+    editor.onDidDestroy(function () { return deactivate(); });
     function showExpressionType(e) {
         if (exprTypeTooltip)
             return;
         var pixelPt = pixelPositionFromMouseEvent(editorView, e);
-        pixelPt.top += editor.displayBuffer.getScrollTop();
-        pixelPt.left += editor.displayBuffer.getScrollLeft();
+        pixelPt.top += editor.getScrollTop();
+        pixelPt.left += editor.getScrollLeft();
         var screenPt = editor.screenPositionForPixelPosition(pixelPt);
         var bufferPt = editor.bufferPositionForScreenPosition(screenPt);
         var curCharPixelPt = rawView.pixelPositionForBufferPosition([bufferPt.row, bufferPt.column]);

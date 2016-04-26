@@ -1,10 +1,11 @@
+/// <reference path="../node_modules/ntypescript/bin/ntypescript.d.ts"/>
+/// <reference path="../node_modules/tsconfig/dist/tsconfig.d.ts"/>
 /// <reference path="./typings/tsd.d.ts"/>
 
 // From brackets plugin
 /// <reference path="./typings/bluebird.d.ts"/>
 /// <reference path="./typings/codemirror.d.ts"/>
 /// <reference path="./typings/brackets.d.ts"/>
-/// <reference path="./typings/minimatch.d.ts"/>
 /// <reference path="./typings/mustache.d.ts"/>
 
 /// <reference path="../views/views.d.ts"/>
@@ -12,6 +13,12 @@
 
 /** Utility function to print stack trace from whereever */
 declare function stack();
+declare module NodeJS {
+    export interface Global {
+        stack: any;
+        ts: any;
+    }
+}
 
 interface Function {
     name?: string; // exists for named function on node / atom / "good" browsers ;)
@@ -27,6 +34,20 @@ declare module 'escape-html' {
     export = escape;
 }
 
+declare module 'detect-indent' {
+    function detectIndent (string: string): { amount: number; type?: string; indent: string };
+    export = detectIndent;
+}
+
+declare module 'detect-newline' {
+    function detectNewline (string: string): string;
+    export = detectNewline;
+}
+
+declare module 'xtend' {
+    function extend <T, U> (dest: T, src: U): T & U;
+    export = extend;
+}
 
 declare module 'atom-space-pen-views' {
     import atom = require('atom');
@@ -44,9 +65,10 @@ declare module 'basarat-text-buffer' {
 }
 
 interface EmitOutput {
+    sourceFileName: string;
     outputFiles: string[];
     success: boolean;
-    errors: TSError[];
+    errors: CodeError[];
     emitError: boolean;
 }
 
@@ -66,10 +88,10 @@ interface BuildUpdate {
     errorCount: number;
     firstError: boolean;
     filePath: string;
-    errorsInFile: TSError[];
+    errorsInFile: CodeError[];
 }
 
-interface TSError {
+interface CodeError {
     filePath: string;
     startPos: EditorPosition;
     endPos: EditorPosition;
@@ -118,6 +140,18 @@ interface NavigateToItem {
     fileName: string;
 }
 
+/**
+ * used by semantic view
+ */
+interface SemanticTreeNode {
+    text: string;
+    kind: string;
+    kindModifiers: string;
+    start: EditorPosition;
+    end: EditorPosition;
+    subNodes: SemanticTreeNode[];
+}
+
 interface ReferenceDetails {
     filePath: string;
     position: EditorPosition
@@ -150,4 +184,10 @@ interface NodeDisplay {
 interface FileDependency {
     sourcePath: string;
     targetPath: string;
+}
+
+/** Provided by the atom team */
+interface String {
+    startsWith(str: string): boolean;
+    endsWith(str: string): boolean;
 }

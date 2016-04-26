@@ -42,14 +42,12 @@ class RequesterResponder {
     protected getProcess: {
         (): { send?: <T>(message: Message<T>) => any }
     }
-    = () => { throw new Error('getProcess is abstract'); return null; }
-
 
     ///////////////////////////////// REQUESTOR /////////////////////////
 
     private currentListeners: { [message: string]: { [id: string]: PromiseDeferred<any> } } = {};
-    
-    /** Only relevant when we only want the last of this type */    
+
+    /** Only relevant when we only want the last of this type */
     private currentLastOfType: {
         [message: string]: { data: any; defer: PromiseDeferred<any>; }
     } = {};
@@ -61,7 +59,7 @@ class RequesterResponder {
     protected processResponse(m: any) {
         var parsed: Message<any> = m;
 
-        this.pendingRequests.pop();
+        this.pendingRequests.shift();
         this.pendingRequestsChanged(this.pendingRequests);
 
         if (!parsed.message || !parsed.id) {
@@ -80,7 +78,7 @@ class RequesterResponder {
                 this.currentListeners[parsed.message][parsed.id].resolve(parsed.data);
             }
             delete this.currentListeners[parsed.message][parsed.id];
-            
+
             // If there is current last one queued then that needs to be resurrected
             if (this.currentLastOfType[parsed.message]) {
                 let last = this.currentLastOfType[parsed.message];
@@ -90,8 +88,8 @@ class RequesterResponder {
             }
         }
     }
-    
-    private sendToIpcHeart = (data, message) => {        
+
+    private sendToIpcHeart = (data, message) => {
 
         // If we don't have a child exit
         if (!this.getProcess()) {
@@ -104,14 +102,15 @@ class RequesterResponder {
 
         // Create an id unique to this call and store the defered against it
         var id = createId();
-        var defer = Promise.defer<any>();
-        this.currentListeners[message][id] = defer;
+        const promise = new Promise((resolve,reject)=>{
+            this.currentListeners[message][id] = { resolve, reject, promise };
+        });
 
         // Send data to worker
         this.pendingRequests.push(message);
         this.pendingRequestsChanged(this.pendingRequests);
         this.getProcess().send({ message: message, id: id, data: data, request: true });
-        return defer.promise;
+        return promise;
     }
 
     /**
@@ -123,9 +122,9 @@ class RequesterResponder {
         var message = func.name;
         return (data) => this.sendToIpcHeart(data, message);
     }
-    
-    /** 
-     * If there are more than one pending then we only want the last one as they come in. 
+
+    /**
+     * If there are more than one pending then we only want the last one as they come in.
      * All others will get the default value
      */
     sendToIpcOnlyLast<Query, Response>(func: QRFunction<Query, Response>, defaultResponse: Response): QRFunction<Query, Response> {
@@ -146,21 +145,22 @@ class RequesterResponder {
                 // Note:
                 // The last needs to continue once the current one finishes
                 // That is done in our response handler
-                
-                
+
+
                 // If there is already something queued as last.
                 // Then it is no longer last and needs to be fed a default value
                 if (this.currentLastOfType[message]) {
                     this.currentLastOfType[message].defer.resolve(defaultResponse);
                 }
-                
+
                 // this needs to be the new last
-                var defer = Promise.defer<Response>();
-                this.currentLastOfType[message] = {
-                    data: data,
-                    defer: defer
-                }
-                return defer.promise;
+                const promise = new Promise<Response>((resolve,reject)=>{
+                    this.currentLastOfType[message] = {
+                        data: data,
+                        defer: {promise,resolve,reject}
+                    }
+                });
+                return promise;
             }
         };
     }
@@ -185,25 +185,25 @@ class RequesterResponder {
 
         responsePromise
             .then((response) => {
-            this.getProcess().send({
-                message: message,
-                /** Note: to process a request we just pass the id as we recieve it */
-                id: parsed.id,
-                data: response,
-                error: null,
-                request: false
-            });
-        })
+                this.getProcess().send({
+                    message: message,
+                    /** Note: to process a request we just pass the id as we recieve it */
+                    id: parsed.id,
+                    data: response,
+                    error: null,
+                    request: false
+                });
+            })
             .catch((error) => {
-            this.getProcess().send({
-                message: message,
-                /** Note: to process a request we just pass the id as we recieve it */
-                id: parsed.id,
-                data: null,
-                error: error,
-                request: false
+                this.getProcess().send({
+                    message: message,
+                    /** Note: to process a request we just pass the id as we recieve it */
+                    id: parsed.id,
+                    data: null,
+                    error: error,
+                    request: false
+                });
             });
-        });
     }
 
     private addToResponders<Query, Response>(func: (query: Query) => Promise<Response>) {
@@ -231,10 +231,19 @@ export class Parent extends RequesterResponder {
     /** start worker */
     startWorker(childJsPath: string, terminalError: (e: Error) => any, customArguments: string[]) {
         try {
+            /** At least on NixOS, the environment must be preserved for
+                dynamic libraries to be properly linked.
+                On Windows/MacOS, it needs to be cleared, cf. atom/atom#2887 */
+            var spawnEnv = (process.platform === 'linux') ? Object.create(process.env) : {};
+            spawnEnv['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = '1';
             this.child = spawn(this.node, [
             // '--debug', // Uncomment if you want to debug the child process
                 childJsPath
-            ].concat(customArguments), { cwd: path.dirname(childJsPath), env: { ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1' }, stdio: ['ipc'] });
+            ].concat(customArguments), {
+              cwd: path.dirname(childJsPath),
+              env: spawnEnv,
+              stdio: ['ipc']
+            });
 
             this.child.on('error', (err) => {
                 if (err.code === "ENOENT" && err.path === this.node) {
@@ -258,16 +267,13 @@ export class Parent extends RequesterResponder {
             });
             this.child.on('close', (code) => {
                 if (this.stopped) {
-                    console.log('ts worker successfully stopped', code);
-                    return
+                    return;
                 }
 
                 // Handle process dropping
-                console.log('ts worker exited with code:', code);
 
                 // If orphaned then Definitely restart
                 if (code === orphanExitCode) {
-                    console.log('ts worker restarting');
                     this.startWorker(childJsPath, terminalError, customArguments);
                 }
                 // If we got ENOENT. Restarting will not help.
@@ -276,7 +282,7 @@ export class Parent extends RequesterResponder {
                 }
                 // We haven't found a reson to not start worker yet
                 else {
-                    console.log('ts worker restarting');
+                    console.log("ts worker restarting. Don't know why it stopped with code:", code);
                     this.startWorker(childJsPath, terminalError, customArguments);
                 }
             });

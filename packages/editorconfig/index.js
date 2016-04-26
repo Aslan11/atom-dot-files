@@ -1,35 +1,41 @@
-'use strict';
-var Subscriber = require('emissary').Subscriber;
-var editorconfig = require('editorconfig');
-var plugin = module.exports;
+/** @babel */
+import generateConfig from './commands/generate';
 
-Subscriber.extend(plugin);
+const lazyReq = require('lazy-req')(require); // eslint-disable-line
+const editorconfig = lazyReq('editorconfig');
 
 function init(editor) {
+	generateConfig();
+
 	if (!editor) {
 		return;
 	}
 
-	var file = editor.getURI();
+	const file = editor.getURI();
+
+	const lineEndings = {
+		crlf: '\r\n',
+		lf: '\n'
+	};
 
 	if (!file) {
 		return;
 	}
 
-	editorconfig.parse(file).then(function (config) {
+	editorconfig().parse(file).then(config => {
 		if (Object.keys(config).length === 0) {
 			return;
 		}
 
-		var isTab = config.indent_style === 'tab' || !editor.softTabs;
+		const indentStyle = config.indent_style || (editor.getSoftTabs() ? 'space' : 'tab');
 
-		if (isTab) {
+		if (indentStyle === 'tab') {
 			editor.setSoftTabs(false);
 
 			if (config.tab_width) {
 				editor.setTabLength(config.tab_width);
 			}
-		} else {
+		} else if (indentStyle === 'space') {
 			editor.setSoftTabs(true);
 
 			if (config.indent_size) {
@@ -37,14 +43,19 @@ function init(editor) {
 			}
 		}
 
+		if (config.end_of_line && config.end_of_line in lineEndings) {
+			const preferredLineEnding = lineEndings[config.end_of_line];
+			editor.getBuffer().setPreferredLineEnding(preferredLineEnding);
+		}
+
 		if (config.charset) {
-			// EditorConfig charset names matches iconv charset names.
-			// Which is used by Atom. So no charset name convertion is needed.
-			editor.setEncoding(config.charset);
+			// by default Atom uses charset name without any dashes in them
+			// (i.e. 'utf16le' instead of 'utf-16le').
+			editor.setEncoding(config.charset.replace(/-/g, '').toLowerCase());
 		}
 	});
 }
 
-plugin.activate = function () {
+export const activate = () => {
 	atom.workspace.observeTextEditors(init);
 };

@@ -1,3 +1,4 @@
+"use strict";
 var fs = require('fs');
 exports.languageServiceHost = require('./languageServiceHost2');
 var tsconfig = require('../../tsconfig/tsconfig');
@@ -29,6 +30,9 @@ var Project = (function () {
         var files = this.languageService.getProgram().getSourceFiles().filter(function (x) { return x.fileName !== libFile; });
         return files;
     };
+    Project.prototype.includesSourceFile = function (fileName) {
+        return (this.getProjectSourceFiles().filter(function (f) { return f.fileName === fileName; }).length === 1);
+    };
     return Project;
-})();
+}());
 exports.Project = Project;

@@ -1,8 +1,8 @@
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var view = require('./view');
 var $ = view.$;
@@ -73,9 +73,8 @@ var RenameView = (function (_super) {
     };
     RenameView.content = html;
     return RenameView;
-})(view.View);
+}(view.View));
 exports.RenameView = RenameView;
-exports.panelView;
 var panel;
 function attach() {
     exports.panelView = new RenameView({});

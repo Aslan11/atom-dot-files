@@ -3,15 +3,14 @@ RegionRenderer = require './region-renderer'
 module.exports =
 class OutlineRenderer extends RegionRenderer
   render: (colorMarker) ->
-    range = colorMarker.marker.getScreenRange()
-    return [] if range.isEmpty()
-
-    color = colorMarker.color.toCSS()
+    range = colorMarker.getScreenRange()
+    color = colorMarker.color
+    return {} if range.isEmpty() or not color?
 
     rowSpan = range.end.row - range.start.row
     regions = @renderRegions(colorMarker)
 
-    @styleRegion(region, color) for region in regions
+    @styleRegion(region, color.toCSS()) for region in regions when region?
     {regions}
 
   styleRegion: (region, color) ->

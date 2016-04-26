@@ -34,6 +34,7 @@ declare module autocompleteplus {
 
         rightLabel?: string;
         rightLabelHTML?: string;
+        leftLabel?: string;
         type: string;
         description?: string;
 
@@ -52,6 +53,7 @@ declare module autocompleteplus {
     export interface Provider {
         inclusionPriority?: number;
         excludeLowerPriority?: boolean;
+        suggestionPriority?: number;
         selector: string;
         disableForSelector?: string;
         getSuggestions: (options: RequestOptions) => Promise<Suggestion[]>;
@@ -76,47 +78,13 @@ interface SnippetsContianer {
     [name: string]: SnippetDescriptor;
 }
 
-
-// this is the structure we use to speed up the lookup by avoiding having to
-// iterate over the object properties during the requestHandler
-// this will take a little longer during load but I guess that is better than
-// taking longer at each key stroke
-interface SnippetDetail {
-    body: string;
-    name: string;
-}
-
-var tsSnipPrefixLookup: { [prefix: string]: SnippetDetail; } = Object.create(null);
-function loadSnippets() {
-    var confPath = atom.getConfigDirPath();
-    CSON.readFile(confPath + "/packages/atom-typescript/snippets/typescript-snippets.cson",
-        (err, snippetsRoot) => {
-            if (err) return;
-            if (!snippetsRoot || !snippetsRoot['.source.ts']) return;
-
-            // rearrange/invert the way this can be looked up: we want to lookup by prefix
-            // this way the lookup gets faster because we dont have to iterate over the
-            // properties of the object
-            var tsSnippets: SnippetsContianer = snippetsRoot['.source.ts'];
-            for (var snippetName in tsSnippets) {
-                if (tsSnippets.hasOwnProperty(snippetName)) {
-                    // if the file contains a prefix multiple times only
-                    // the last will be active because the previous ones will be overwritten
-                    tsSnipPrefixLookup[tsSnippets[snippetName].prefix] = {
-                        body: tsSnippets[snippetName].body,
-                        name: snippetName
-                    }
-                }
-            }
-        });
-}
-loadSnippets();
-
 export var provider: autocompleteplus.Provider = {
-    selector: '.source.ts',
+    selector: '.source.ts, .source.tsx',
     inclusionPriority: 3,
+    suggestionPriority: 3,
     excludeLowerPriority: false,
     getSuggestions: (options: autocompleteplus.RequestOptions): Promise<autocompleteplus.Suggestion[]>=> {
+
         var filePath = options.editor.getPath();
 
         // We refuse to work on files that are not on disk.
@@ -124,12 +92,12 @@ export var provider: autocompleteplus.Provider = {
         if (!fs.existsSync(filePath)) return Promise.resolve([]);
 
         // If we are looking at reference or require path support file system completions
-        var pathMatchers = ['reference.path.string', 'require.path.string', 'es6import.path.string'];
+        var pathMatchers = ['reference.path.quoted.string', 'require.path.quoted.string', 'es6import.path.quoted.string'];
         var lastScope = options.scopeDescriptor.scopes[options.scopeDescriptor.scopes.length - 1];
 
         // For file path completions
         if (pathMatchers.some(p=> lastScope === p)) {
-            return parent.getRelativePathsInProject({ filePath, prefix: options.prefix, includeExternalModules: lastScope !== 'reference.path.string' })
+            return parent.getRelativePathsInProject({ filePath, prefix: options.prefix, includeExternalModules: lastScope !== 'reference.path.quoted.string' })
                 .then((resp) => {
                 return resp.files.map(file => {
                     var relativePath = file.relativePath;
@@ -139,24 +107,24 @@ export var provider: autocompleteplus.Provider = {
 
                     var suggestion: autocompleteplus.Suggestion = {
                         text: suggestionText,
-                        replacementPrefix: resp.endsInPunctuation ? '' : options.prefix,
+                        replacementPrefix: resp.endsInPunctuation ? '' : options.prefix.trim(),
                         rightLabelHTML: '<span>' + file.name + '</span>',
                         type: 'path'
                     };
 
-                    if (lastScope == 'reference.path.string') {
+                    if (lastScope == 'reference.path.quoted.string') {
                         suggestion.atomTS_IsReference = {
                             relativePath: relativePath
                         };
                     }
 
-                    if (lastScope == 'require.path.string') {
+                    if (lastScope == 'require.path.quoted.string') {
                         suggestion.atomTS_IsImport = {
                             relativePath: relativePath
                         };
                     }
 
-                    if (lastScope == 'es6import.path.string') {
+                    if (lastScope == 'es6import.path.quoted.string') {
                         suggestion.atomTS_IsES6Import = {
                             relativePath: relativePath
                         };
@@ -173,7 +141,9 @@ export var provider: autocompleteplus.Provider = {
                 explicitlyTriggered = false;
             }
             else { // else in special cases for automatic triggering refuse to provide completions
-                if (options.prefix && options.prefix.trim() == ';') {
+                const prefix = options.prefix.trim()
+
+                if (prefix === '' || prefix === ';') {
                     return Promise.resolve([]);
                 }
             }
@@ -201,9 +171,19 @@ export var provider: autocompleteplus.Provider = {
                             };
                         }
                         else {
+                            var prefix = options.prefix;
+                            // If the completion is $foo
+                            // The prefix from acp is actually only `foo`
+                            // But the var is $foo
+                            // => so we would potentially end up replacing $foo with $$foo
+                            // Fix that:
+                            if (c.name && c.name.startsWith('$')) {
+                                prefix = "$" + prefix;
+                            }
+
                             return {
                                 text: c.name,
-                                replacementPrefix: resp.endsInPunctuation ? '' : options.prefix,
+                                replacementPrefix: resp.endsInPunctuation ? '' : prefix.trim(),
                                 rightLabel: c.display,
                                 leftLabel: c.kind,
                                 type: atomUtils.kindToType(c.kind),
@@ -211,21 +191,6 @@ export var provider: autocompleteplus.Provider = {
                             };
                         }
                     });
-
-
-                    // see if we have a snippet for this prefix
-                    if (tsSnipPrefixLookup[options.prefix]) {
-                        // you only get the snippet suggested after you have typed
-                        // the full trigger word/ prefex
-                        // and then it replaces a keyword/match that might also be present, e.g. "class"
-                        let suggestion: autocompleteplus.Suggestion = {
-                            snippet: tsSnipPrefixLookup[options.prefix].body,
-                            replacementPrefix: options.prefix,
-                            rightLabelHTML: "snippet: " + options.prefix,
-                            type: 'snippet'
-                        };
-                        suggestions.unshift(suggestion);
-                    }
 
                     return suggestions;
                 });
@@ -244,18 +209,19 @@ export var provider: autocompleteplus.Provider = {
             if (options.suggestion.atomTS_IsReference) {
                 options.editor.moveToBeginningOfLine();
                 options.editor.selectToEndOfLine();
-                options.editor.replaceSelectedText(null, function() { return '/// <reference path="' + options.suggestion.atomTS_IsReference.relativePath + '"/>'; });
+                options.editor.replaceSelectedText(null, function() { return '/// <reference path="' + options.suggestion.atomTS_IsReference.relativePath + '.ts"/>'; });
             }
             if (options.suggestion.atomTS_IsImport) {
                 options.editor.moveToBeginningOfLine();
                 options.editor.selectToEndOfLine();
-                var groups = /^\s*import\s*(\w*)\s*=\s*require\s*\(\s*(["'])/.exec(options.editor.getSelectedText());
-                var alias = groups[1];
+                var groups = /^(\s*)import\s*(\w*)\s*=\s*require\s*\(\s*(["'])/.exec(options.editor.getSelectedText());
+                var leadingWhiteSpace = groups[1];
+                var alias = groups[2];
 
                 // Use the option if they have a preferred. Otherwise preserve
-                quote = quote || groups[2];
+                quote = quote || groups[3];
 
-                options.editor.replaceSelectedText(null, function() { return `import ${alias} = require(${quote}${options.suggestion.atomTS_IsImport.relativePath}${quote});`; });
+                options.editor.replaceSelectedText(null, function() { return `${leadingWhiteSpace}import ${alias} = require(${quote}${options.suggestion.atomTS_IsImport.relativePath}${quote});`; });
             }
             if (options.suggestion.atomTS_IsES6Import) {
                 var {row} = options.editor.getCursorBufferPosition();

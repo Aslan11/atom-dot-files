@@ -1,10 +1,13 @@
+"use strict";
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
 var parent = require("../../../worker/parent");
 var buildView = require("../buildView");
 var atomUtils = require("../atomUtils");
 var autoCompleteProvider = require("../autoCompleteProvider");
 var path = require('path');
 var renameView = require("../views/renameView");
-var apd = require('atom-package-dependencies');
 var contextView = require("../views/contextView");
 var fileSymbolsView = require("../views/fileSymbolsView");
 var projectSymbolsView = require("../views/projectSymbolsView");
@@ -18,9 +21,17 @@ var simpleOverlaySelectionView_1 = require("../views/simpleOverlaySelectionView"
 var outputFileCommands = require("./outputFileCommands");
 var moveFilesHandling_1 = require("./moveFilesHandling");
 var escapeHtml = require('escape-html');
+var rView = require("../views/rView");
+var reactCommands_1 = require("./reactCommands");
+var fileStatusCache_1 = require("../fileStatusCache");
+var json2dtsCommands_1 = require("./json2dtsCommands");
+var semanticView = require("../views/semanticView");
+__export(require("../components/componentRegistry"));
 function registerCommands() {
     outputFileCommands.register();
     moveFilesHandling_1.registerRenameHandling();
+    reactCommands_1.registerReactCommands();
+    json2dtsCommands_1.registerJson2dtsCommands();
     function applyRefactorings(refactorings) {
         var paths = atomUtils.getOpenTypeScritEditorsConsistentPaths();
         var openPathsMap = utils.createMap(paths);
@@ -38,7 +49,7 @@ function registerCommands() {
                             editor.setTextInBufferRange(range, refactoring.newText);
                         }
                         else {
-                            var cursor = editor.getCursor();
+                            var cursor = editor.getCursors()[0];
                             cursor.selection.setBufferRange(range);
                             atomUtils.insertSnippet(refactoring.newText, editor, cursor);
                         }
@@ -80,6 +91,15 @@ function registerCommands() {
         atom.notifications.addInfo('Building');
         parent.build({ filePath: filePath }).then(function (resp) {
             buildView.setBuildOutput(resp.buildOutput);
+            resp.tsFilesWithValidEmit.forEach(function (tsFile) {
+                var status = fileStatusCache_1.getFileStatus(tsFile);
+                status.emitDiffers = false;
+            });
+            resp.tsFilesWithInvalidEmit.forEach(function (tsFile) {
+                var status = fileStatusCache_1.getFileStatus(tsFile);
+                status.emitDiffers = true;
+            });
+            mainPanelView_1.panelView.updateFileStatus(filePath);
         });
     });
     var handleGoToDeclaration = function (e) {
@@ -92,7 +112,7 @@ function registerCommands() {
                 return;
             }
             if (definitions.length > 1) {
-                simpleSelectionView_1.default({
+                simpleSelectionView_1.simpleSelectionView({
                     items: definitions,
                     viewForItem: function (item) {
                         return "\n                            <span>" + item.filePath + "</span>\n                            <div class=\"pull-right\">line: " + item.position.line + "</div>\n                        ";
@@ -117,6 +137,17 @@ function registerCommands() {
     };
     atom.commands.add('atom-workspace', 'typescript:go-to-declaration', handleGoToDeclaration);
     atom.commands.add('atom-text-editor', 'symbols-view:go-to-declaration', handleGoToDeclaration);
+    atom.commands.add('atom-workspace', 'typescript:create-tsconfig.json-project-file', function (e) {
+        if (!atomUtils.commandForTypeScript(e))
+            return;
+        var editor = atom.workspace.getActiveTextEditor();
+        var filePath = editor.getPath();
+        parent.createProject({ filePath: filePath }).then(function (res) {
+            if (res.createdFilePath) {
+                atom.notifications.addSuccess("tsconfig.json file created: <br/> " + res.createdFilePath);
+            }
+        });
+    });
     var theContextView;
     atom.commands.add('atom-text-editor', 'typescript:context-actions', function (e) {
         if (!theContextView)
@@ -126,16 +157,13 @@ function registerCommands() {
     atom.commands.add('atom-text-editor', 'typescript:autocomplete', function (e) {
         autoCompleteProvider.triggerAutocompletePlus();
     });
-    atom.commands.add('atom-text-editor', 'typescript:bas-development-testing', function (e) {
-        // documentationView.docView.hide();
-        // documentationView.docView.autoPosition();
-        // documentationView.testDocumentationView();
-        // parent.debugLanguageServiceHostVersion({ filePath: atom.workspace.getActiveEditor().getPath() })
-        //     .then((res) => {
-        //     console.log(res.text.length);
-        //     // console.log(JSON.stringify({txt:res.text}))
-        // });
+    atom.commands.add('atom-workspace', 'typescript:bas-development-testing', function (e) {
         atom.commands.dispatch(atom.views.getView(atom.workspace.getActiveTextEditor()), 'typescript:dependency-view');
+    });
+    atom.commands.add('atom-workspace', 'typescript:toggle-semantic-view', function (e) {
+        if (!atomUtils.commandForTypeScript(e))
+            return;
+        semanticView.toggle();
     });
     atom.commands.add('atom-text-editor', 'typescript:rename-refactor', function (e) {
         var editor = atom.workspace.getActiveTextEditor();
@@ -146,11 +174,11 @@ function registerCommands() {
                 atom.notifications.addInfo('AtomTS: Can only rename external modules if they are relative files!');
                 return;
             }
-            var completePath = path.resolve(path.dirname(atomUtils.getCurrentPath()), relativePath) + '.ts';
+            var completePath_1 = path.resolve(path.dirname(atomUtils.getCurrentPath()), relativePath) + '.ts';
             renameView.panelView.renameThis({
                 autoSelect: false,
                 title: 'Rename File',
-                text: completePath,
+                text: completePath_1,
                 openFiles: [],
                 closedFiles: [],
                 onCancel: function () { },
@@ -162,7 +190,7 @@ function registerCommands() {
                 },
                 onCommit: function (newText) {
                     newText = newText.trim();
-                    parent.getRenameFilesRefactorings({ oldPath: completePath, newPath: newText })
+                    parent.getRenameFilesRefactorings({ oldPath: completePath_1, newPath: newText })
                         .then(function (res) {
                         applyRefactorings(res.refactorings);
                     });
@@ -227,10 +255,10 @@ function registerCommands() {
             return;
         parent.getReferences(atomUtils.getFilePathPosition()).then(function (res) {
             mainPanelView_1.panelView.setReferences(res.references);
-            simpleSelectionView_1.default({
+            simpleSelectionView_1.simpleSelectionView({
                 items: res.references,
                 viewForItem: function (item) {
-                    return "\n                        <span>" + atom.project.relativize(item.filePath) + "</span>\n                        <div class=\"pull-right\">line: " + item.position.line + "</div>\n                        <pre style=\"clear:both\">" + item.preview + "</pre>\n                    ";
+                    return "<div>\n                        <span>" + atom.project.relativize(item.filePath) + "</span>\n                        <div class=\"pull-right\">line: " + (item.position.line + 1) + "</div>\n                        <ts-view>" + item.preview + "</ts-view>\n                    <div>";
                 },
                 filterKey: utils.getName(function () { return res.references[0].filePath; }),
                 confirmed: function (definition) {
@@ -255,7 +283,7 @@ function registerCommands() {
         var editor = atom.workspace.getActiveTextEditor();
         if (!editor)
             return false;
-        if (path.extname(editor.getPath()) !== '.ts')
+        if (path.extname(editor.getPath()) !== '.ts' && path.extname(editor.getPath()) !== '.tsx')
             return false;
         e.abortKeyBinding();
         var filePath = editor.getPath();
@@ -338,7 +366,6 @@ function registerCommands() {
                 },
                 filterKey: 'display',
                 confirmed: function (item) {
-                    // NOTE: we can special case UI's here if we want.
                     parent.applyQuickFix({ key: item.key, filePath: query.filePath, position: query.position }).then(function (res) {
                         applyRefactorings(res.refactorings);
                     });
@@ -346,10 +373,28 @@ function registerCommands() {
             }, editor);
         });
     });
+    atomUtils.registerOpener({
+        commandSelector: 'atom-workspace',
+        commandName: 'typescript:testing-r-view',
+        uriProtocol: rView.RView.protocol,
+        getData: function () { return atomUtils.getFilePath(); },
+        onOpen: function (data) { return new rView.RView({
+            icon: 'repo-forked',
+            title: 'React View',
+            filePath: data.filePath,
+        }); },
+    });
     atom.commands.add('atom-workspace', 'typescript:sync', function (e) {
         if (!atomUtils.commandForTypeScript(e))
             return;
         mainPanelView_1.panelView.softReset();
+    });
+    atom.commands.add('atom-text-editor', 'typescript:toggle-breakpoint', function (e) {
+        if (!atomUtils.commandForTypeScript(e))
+            return;
+        parent.toggleBreakpoint(atomUtils.getFilePathPosition()).then(function (res) {
+            applyRefactorings(res.refactorings);
+        });
     });
 }
 exports.registerCommands = registerCommands;

@@ -1,11 +1,12 @@
+"use strict";
 function isBinaryAddition(node) {
-    return (node.kind == 170 &&
-        node.operatorToken.kind == 33);
+    return (node.kind == ts.SyntaxKind.BinaryExpression &&
+        node.operatorToken.kind == ts.SyntaxKind.PlusToken);
 }
 function isStringExpression(node, typeChecker) {
     var type = typeChecker.getTypeAtLocation(node);
     var flags = type.getFlags();
-    return !!(flags & 2);
+    return !!(flags & ts.TypeFlags.String);
 }
 function isAPartOfAChainOfStringAdditions(node, typeChecker) {
     var largestSumNode = undefined;
@@ -13,7 +14,7 @@ function isAPartOfAChainOfStringAdditions(node, typeChecker) {
         if (isBinaryAddition(node) && isStringExpression(node, typeChecker)) {
             largestSumNode = node;
         }
-        if (node.kind == 228) {
+        if (node.kind == ts.SyntaxKind.SourceFile) {
             return largestSumNode;
         }
         node = node.parent;
@@ -24,10 +25,6 @@ var StringConcatToTemplate = (function () {
         this.key = StringConcatToTemplate.name;
     }
     StringConcatToTemplate.prototype.canProvideFix = function (info) {
-        // Algo
-        // Can provide a quick fix if we are part of an expression that
-        // is a part of a binary + expression
-        // and when these binary +es end we come to an expression which is of type `string`
         var strRoot = isAPartOfAChainOfStringAdditions(info.positionNode, info.typeChecker);
         if (strRoot) {
             return { display: 'String concatenations to a template string' };
@@ -42,7 +39,7 @@ var StringConcatToTemplate = (function () {
         var $regex = /\$/g;
         while (true) {
             function appendToFinal(node) {
-                if (node.kind == 8) {
+                if (node.kind == ts.SyntaxKind.StringLiteral) {
                     var text = node.getText();
                     var quoteCharacter = text.trim()[0];
                     var quoteRegex = new RegExp(quoteCharacter, 'g');
@@ -54,7 +51,7 @@ var StringConcatToTemplate = (function () {
                     newText_1 = newText_1.substr(1, newText_1.length - 2);
                     finalOutput.unshift(newText_1);
                 }
-                else if (node.kind == 172 || node.kind == 10) {
+                else if (node.kind == ts.SyntaxKind.TemplateExpression || node.kind == ts.SyntaxKind.NoSubstitutionTemplateLiteral) {
                     var text = node.getText();
                     text = text.trim();
                     text = text.substr(1, text.length - 2);
@@ -64,7 +61,7 @@ var StringConcatToTemplate = (function () {
                     finalOutput.unshift('${' + node.getText() + '}');
                 }
             }
-            if (current.kind == 170) {
+            if (current.kind == ts.SyntaxKind.BinaryExpression) {
                 var binary = current;
                 appendToFinal(binary.right);
                 current = binary.left;
@@ -86,5 +83,5 @@ var StringConcatToTemplate = (function () {
         return [refactoring];
     };
     return StringConcatToTemplate;
-})();
+}());
 exports.StringConcatToTemplate = StringConcatToTemplate;
