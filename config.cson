@@ -3,6 +3,8 @@
     audioBeep: false
     disabledPackages: [
       "atom-color-highlight"
+      "jslint"
+      "linter-jslint"
     ]
     themes: [
       "seti-ui"
@@ -10,7 +12,8 @@
     ]
   editor:
     autoIndentOnPaste: false
-    fontSize: 17
+    fontFamily: "mononoki"
+    fontSize: 16
     invisibles: {}
     preferredLineLength: 120
     showInvisibles: true
@@ -26,3 +29,7 @@
 ".angular.html.text":
   editor:
     preferredLineLength: 120
+".coffee.source":
+  editor:
+    preferredLineLength: 120
+    tabLength: 4
